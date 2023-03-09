@@ -1,4 +1,4 @@
-from classUtil_v1 import Utility
+from utility import Utility
 from os.path import join
 from os.path import isdir,exists
 from os import mkdir,sep,listdir

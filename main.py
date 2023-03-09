@@ -1,8 +1,8 @@
 import BaxTrack as BTP # FIXME: remove MATLAB from here!!!
-from classUtil_v1 import Utility
-from classExp_v4 import Exp_Indiv
+from utility import Utility
+from experiments import Exp_Indiv
 import pandas as pd
-from classAnalysis_v1 import Analysis
+from analysis import Analysis
 from os.path import join,exists
 from os.path import isdir
 from os import sep,walk

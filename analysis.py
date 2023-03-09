@@ -1,4 +1,4 @@
-from classExp_v3 import Exp_Indiv
+from experiments import Exp_Indiv
 from os import sep
 from os.path import join
 import numpy as np
