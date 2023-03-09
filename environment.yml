@@ -1,0 +1,41 @@
+name: ImgAnaPip
+channels:
+ - pytorch
+ - conda-forge
+dependencies:
+ - python=3.8
+ - pytorch=1.11.0
+ - cudatoolkit=11.3
+ - pystackreg
+ - pip
+ - pip:
+   - scipy
+   - opencv-python-headless
+   - opencv-python==4.1.2.30
+   - scikit-image
+   - diplib
+   - matplotlib
+   - smo
+   - nd2reader
+   - seaborn
+   - numpy>=1.20.0
+   - natsort
+   - tifffile
+   - tqdm
+   - numba>=0.53.0
+   - llvmlite
+   - mahotas
+   - fastremap
+   - imagecodecs
+   - pyqtgraph>=0.11.0rc0
+   - pyqt5
+   - pyqt5.sip
+   - superqt
+   - google-cloud-storage
+   - sphinx>=3.0
+   - sphinxcontrib-apidoc
+   - sphinx_rtd_theme
+   - dask
+   - dask_image
+ 
+ 

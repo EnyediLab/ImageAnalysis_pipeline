@@ -1,0 +1,21 @@
+## Install from environement
+conda env create -f environment.yml 
+conda activate cp_base
+python -m pip install cellpose --no-deps
+
+## Install MatlabRuntime on linux
+on the server:
+	go to /home/ben/EBlabDrive/Users/TDK/Fabian/BaxTrack/PythonTracking/for_redistribution
+	launch MyAppInstaller_web.install
+	follow instruction on the gui
+	save matlabRunTime and the pkg at the loctaion of your choice
+on the terminal:
+	go to application folder of your pkg at the location set up above: cd ~/Softwares/MATLAB/PythonTracking/application
+	python setup.py install
+	add in .bashrc:
+		# MATLAB RunTime
+		export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/home/ben/Softwares/MATLAB/MATLAB_Runtime/v912/runtime/glnxa64
+		export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/home/ben/Softwares/MATLAB/MATLAB_Runtime/v912/bin/glnxa64
+		export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/home/ben/Softwares/MATLAB/MATLAB_Runtime/v912/sys/os/glnxa64
+		export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/home/ben/Softwares/MATLAB/MATLAB_Runtime/v912/sys/opengl/lib/glnxa64
+
