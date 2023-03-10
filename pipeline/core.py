@@ -197,7 +197,7 @@ class Experiments(Utility):
             # Update exp_dict
             self.exp_dict[path] = self.exps[exp_lst.index(path)].exp_prop
     
-    def exp_compart(self,maskFold='Masks_Trimmed',channel_seg=None,exp_path=None,rad_ero=10,rad_dil=None,compart_ow=False,dil_iteration=1,ero_iteration=1):
+    def exp_compart(self,maskFold,channel_seg=None,exp_path=None,rad_ero=10,rad_dil=None,compart_ow=False,dil_iteration=1,ero_iteration=1):
         # Get channel and path
         chan_seg, exp_folder_path = self.exp_get_chanNpath(channel_seg=channel_seg,exp_path=exp_path)
         
@@ -211,7 +211,7 @@ class Experiments(Utility):
             # Update exp_dict
             self.exp_dict[path] = self.exps[exp_lst.index(path)].exp_prop
     
-    def exp_class(self,primary_channel,secondary_channel,exp_path=None,maskFold='Masks_Trimmed',rad_ero=10,class_ow=False,**kwargs):
+    def exp_class(self,maskFold,primary_channel,secondary_channel,exp_path=None,rad_ero=10,class_ow=False,**kwargs):
         # Get channel and path
         __,exp_folder_path = self.exp_get_chanNpath(exp_path=exp_path)
         
