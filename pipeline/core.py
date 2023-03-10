@@ -182,7 +182,7 @@ class Experiments(Utility):
             # Update exp_dict
             self.exp_dict[path] = self.exps[exp_lst.index(path)].exp_prop
         
-    def exp_track_cells(self,maskFold='Masks_CP',exp_path=None,channel_seg=None,stitch_threshold=0.25,shape_threshold=0.2,stitch_ow=False):
+    def exp_track_cells(self,maskFold='Masks_CP',exp_path=None,channel_seg=None,stitch_threshold=0.25,shape_threshold=0.2,stitch_ow=False,n_mask=2):
         # Get channel and path
         chan_seg, exp_folder_path = self.exp_get_chanNpath(channel_seg=channel_seg,exp_path=exp_path)
         
@@ -192,7 +192,7 @@ class Experiments(Utility):
         # Run stitch
         for path in exp_folder_path:
             # Stitch
-            self.exps[exp_lst.index(path)].stitch_masks(stitch_threshold=stitch_threshold,channel_seg=chan_seg,stitch_ow=stitch_ow,maskFold=maskFold,shape_threshold=shape_threshold)
+            self.exps[exp_lst.index(path)].stitch_masks(stitch_threshold=stitch_threshold,channel_seg=chan_seg,stitch_ow=stitch_ow,maskFold=maskFold,shape_threshold=shape_threshold,n_mask=n_mask)
 
             # Update exp_dict
             self.exp_dict[path] = self.exps[exp_lst.index(path)].exp_prop
