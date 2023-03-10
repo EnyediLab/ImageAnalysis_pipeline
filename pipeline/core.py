@@ -54,16 +54,10 @@ class Experiments(Utility):
         else:
             self.channel_seg = channel_seg
 
-    def pre_process_all(self,bg_sub='Auto',imseq_ow=False,channel_seg=None,true_channel_list=None,reg=False,**kwargs):
-        # Get channel
-        if channel_seg:
-            chan_seg = channel_seg
-        else:
-            chan_seg = self.channel_seg
-
+    def pre_process_all(self,bg_sub='Auto',imseq_ow=False,true_channel_list=None,reg=False,**kwargs):
         # Unpack all kwargs
         defSMO = {'sigma':0.0,'size':7} # Default kwargs for Auto bgsub methods
-        defReg = {'reg_mtd':'translation','reg_ref':'mean','reg_ow':False,'reg_channel':chan_seg} # Default kwargs for image registration
+        defReg = {'reg_mtd':'translation','reg_ref':'mean','reg_ow':False,'reg_channel':self.channel_seg} # Default kwargs for image registration
         if kwargs: # Replace default val with input args
             for k,v in kwargs.items():
                 if k in defReg:
