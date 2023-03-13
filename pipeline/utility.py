@@ -689,6 +689,8 @@ class Utility():
     #### Utility for post-processing masks
     @staticmethod
     def modif_stitch3D(masks,stitch_threshold):
+        # Invert stitch_threshold
+        stitch_threshold = 1 - stitch_threshold
         # basic stitching from Cellpose
         masks = stitch3D(masks, stitch_threshold=stitch_threshold)
         

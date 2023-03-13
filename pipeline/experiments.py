@@ -171,7 +171,7 @@ class Exp_Indiv(Utility):
                 self.exp_prop['channel_seg']['Masks_BaxTracked'] = [chan_seg]
             Exp_Indiv.save_exp_prop(exp_path=self.exp_path,exp_prop=self.exp_prop)
 
-    def stitch_masks(self,maskFold='Masks_CP',channel_seg=None,stitch_threshold=0.25,shape_threshold=0.2,stitch_ow=False,n_mask=2):
+    def stitch_masks(self,maskFold='Masks_CP',channel_seg=None,stitch_threshold=0.75,shape_threshold=0.2,stitch_ow=False,n_mask=2):
         
         if self.frames==1:
             print('Not a time sequence, triming mask will be ignored')

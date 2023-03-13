@@ -13,19 +13,13 @@ import matplotlib.pyplot as plt
 # TODO: make all the notebook template
 # TODO: implement parallel processing
 class Experiments(Utility):
-    """Class that carries all the necessary variable to run all the pipelines.
-    It also convert all selected 2D files into image sequences. Background substraction 
-    and image registration can also be applied to the images."""
-
     def __init__(self,parent_folder,channel_list,channel_seg,file_type='.nd2'): # TODO: enable tif file
-        """
-        Class that saves all the necessary variables to run the pipeline.
+        """Class that regroups all experiments, for pre-, processing, analysis and ploting
 
         Args:
-            - parent_folder (str): Path of a folder which contain all the image files to be analysied. It can contain many level of subfolders. It will save the path of all the files of the chosen file_type.
-            - channel_list ([str]): Name of the different channel (of your choice) that will be use to label the image of each channel. The order of the channels depends on the order of channel used during acquisition. For instance, if acquisition was made green channel first then red channel, then channel_list = ['green','red'].
-            - channel_seg (str): Name of the channel to be segmented
-            - exclude_channel (str or [str]): Tag(s) of channel to be excluded from analysis
+            - parent_folder (str): Path of a folder which contains all the image files to be analysied. Image files names will be used as experiment name (rename them if necessary). Image files should be orginized in subfolders depending on their condition. 
+            - channel_list ([str]): List of active channel labels (channel that you want to keep active). The order of the channels depends on the order of channel used during acquisition.
+            - channel_seg (str): Label of the channel to be processed (for segmentation, registration and so on...), not necessarly the one to be measured.
             - file_type (str): Extention of the files to analyse.
         """
         # Check if path is valid
@@ -55,6 +49,31 @@ class Experiments(Utility):
             self.channel_seg = channel_seg
 
     def pre_process_all(self,bg_sub='Auto',imseq_ow=False,true_channel_list=None,reg=False,**kwargs):
+        """Convert image files into image sequences, that will be stored separatly into different folders. 
+        Background is by defaults automatically substracted, and images can also be registered. Save images into 'Images', 
+        and if reg into 'Images_Registered' as well.
+
+        Args:
+            - bg_sub (str, optional): Method of background subtraction to use on extracted images. 
+            Include None, 'Auto' and 'Manual'. Defaults to 'Auto'.
+            - imseq_ow (bool, optional): Overwrite existing image sequences. Defaults to False.
+            - true_channel_list ([str], optional): List of ALL channel labels, even the ones to be excluded. 
+            Defaults to None.
+            - reg (bool, optional): To apply registration on extracted images. Defaults to False.
+        
+        Kwargs (optional):
+            - bg_sub: 
+                - sigma (float): Standard deviation for the Gaussian kernel. Defaults to 0.0
+                - size (int): Size of the averaging kernel. It should be smaller than the foreground structures. 
+                Defaults to 7
+            - reg: 
+                - reg_mtd (str): Reg mtd to apply. Includes 'translation', 'rigid body' (translation + rotation),
+                'scaled rotation' (translation + rotation + scaling), 'affine' (translation + rotation + scaling + shearing) and 
+                'bilinear' (non-linear transformation; does not preserve straight lines). Defaults to 'translation'
+                - reg_ref (str): Select reference image mtd. Includes 'first', 'previous' and 'mean'. Defaults to 'mean'
+                - reg_ow (bool): Overwrite existing regitration. Defaults to False.
+                - reg_channel (str): Label of channel to be used as reference. Defaults to channel_seg
+        """
         # Unpack all kwargs
         defSMO = {'sigma':0.0,'size':7} # Default kwargs for Auto bgsub methods
         defReg = {'reg_mtd':'translation','reg_ref':'mean','reg_ow':False,'reg_channel':self.channel_seg} # Default kwargs for image registration
@@ -102,6 +121,11 @@ class Experiments(Utility):
                 self.exp_dict[exp_path] = Experiments.im_reg(imgFold_path=join(sep,exp_path+sep,'Images'),**defReg)
     
     def remove_exp(self,exp_path):
+        """Remove experiment to be further processed and analysed. All existing processed images will NOT be deleted.
+
+        Args:
+            exp_path (str): Experiment path to be removed (Folder name should start with 's' followed by a number)
+        """
         open(join(sep,exp_path+sep,'REMOVED_EXP.txt'),'w')
         self.exp_dict[exp_path]['status'] = 'REMOVED'
     
@@ -127,6 +151,27 @@ class Experiments(Utility):
         return chan_seg, exp_folder_path
 
     def exp_cp_seg(self,imgFold='Images',exp_path=None,channel_seg=None,seg_ow=False,nucMarker=None,stitch=None,do_log=True,**kwargs):
+        """Runs Cellpose. For details see https://cellpose.readthedocs.io/en/latest/index.html. Save Masks into 'Masks_CP'.
+
+        Args:
+            - imgFold (str, optional): Name of image folder to process. Includes 'Images' (raw images) and 'Images_Registered'. Defaults to 'Images'.
+            - exp_path (str or [str], optional): List of all experiment to process. If None, then it will process all. Defaults to None.
+            - channel_seg (str, optional): Label of channel to segment. If None, it will use channel_seg. Defaults to None.
+            - seg_ow (bool, optional): Overwrite existing segmented mask. Defaults to False.
+            - nucMarker (str, optional): Label of nuclear channel to use as secondary channel for segmentation. Defaults to None.
+            - stitch (float, optional): 3D only - Replace 3D segmentation with 2D seg of each z-plane and then stitch back together to recreate 3D volumes. 
+            'stitch' is the threshold number of minimum overlap between 2 cells to stitched. Defaults to None.
+            - do_log (bool, optional): Display log of cellpose. Defaults to True.
+
+        Kwargs (optional): 
+            Many different parameters can be changed for the input setting, please check https://cellpose.readthedocs.io/en/latest/api.html for full details.
+        The main ones are listed below.
+        
+            - diameter (float): Average diameter of cell to segment (in pixel). One of the main factor that influence segmentation. Defaults to 30.0.
+            - flow_threshold (float): Increase to get more masks. Defaults to 0.4.
+            - cellprob_threshold (float): Decrease to get more masks. Between -6 and 6 only. Defaults to 0.0.
+            - model_type (str): Full path of custom model. Defaults to None.
+        """
         # Get channel and path
         chan_seg, exp_folder_path = self.exp_get_chanNpath(channel_seg=channel_seg,exp_path=exp_path)
             
@@ -164,6 +209,20 @@ class Experiments(Utility):
                     self.exp_dict[path] = exp.exp_prop
         
     def exp_bax_track(self,imgFold=None,maskFold='Masks_CP',exp_path=None,channel_seg=None,trim=False,track_ow=False,**kwargs):
+        """Track masks in both 2D and 3D, using Baxter Algorithem (Matlab). Save masks into 'Masks_BaxTracked'
+
+        Args:
+            - imgFold (str, optional): Name of image folder to process. Includes 'Images' (raw images) and 'Images_Registered'. Defaults to 'Images'.
+            - maskFold (str, optional): Name of masks folder to process. Defaults to 'Masks_CP'.
+            - exp_path (str or [str], optional): List of all experiment to process. If None, then it will process all. Defaults to None.
+            - channel_seg (str, optional): Label of channel to segment. If None, it will use channel_seg. Defaults to None.
+            - trim (bool, optional): Remove all incomplete tracks. Defaults to False.
+            - track_ow (bool, optional): Overwrite existing tracked masks. Defaults to False.
+        
+        Kwargs (optional):
+            - TrackXSpeedStd (int): Max pixel distance move of object on x- and/or y-axis between 2 frames. Defaults to 12.
+            - TrackZSpeedStd (int): 3D only - Max pixel distance move of object on z-axis between 2 frames. Defaults to 3.
+        """
         # Initiates MATLAB runtime
         if not hasattr(self,'track'):
             self.track = BTP.initialize()
@@ -182,7 +241,18 @@ class Experiments(Utility):
             # Update exp_dict
             self.exp_dict[path] = self.exps[exp_lst.index(path)].exp_prop
         
-    def exp_track_cells(self,maskFold='Masks_CP',exp_path=None,channel_seg=None,stitch_threshold=0.25,shape_threshold=0.2,stitch_ow=False,n_mask=2):
+    def exp_track_cells(self,maskFold='Masks_CP',exp_path=None,channel_seg=None,stitch_threshold=0.75,shape_threshold=0.2,stitch_ow=False,n_mask=2):
+        """Track masks of 2D cell lines experiment only.
+
+        Args:
+            - maskFold (str, optional): Name of masks folder to process. Defaults to 'Masks_CP'.
+            - exp_path (str or [str], optional): List of all experiment to process. If None, then it will process all. Defaults to None.
+            - channel_seg (str, optional): Label of channel to segment. If None, it will use channel_seg. Defaults to None.
+            - stitch_threshold (float, optional): Threshold of NON-overlap between 2 cells to be stitched together. Defaults to 0.25.
+            shape_threshold (float, optional): [description]. Defaults to 0.2.
+            stitch_ow (bool, optional): [description]. Defaults to False.
+            n_mask (int, optional): [description]. Defaults to 2.
+        """
         # Get channel and path
         chan_seg, exp_folder_path = self.exp_get_chanNpath(channel_seg=channel_seg,exp_path=exp_path)
         
@@ -451,115 +521,3 @@ class Experiments(Utility):
     # TODO: def add_exp_para_var()
     
     # TODO: def read_exp_para()
-
-
-    # def add_exp(self,exp_path,exp_para=None,bg_sub=None,reg=False,**kwargs):
-    #     # Unpack all kwargs
-    #     defSMO = {'sigma':0.0,'size':7} # Default kwargs for Auto bgsub methods
-    #     defReg = {'reg_mtd':'translation','reg_ref':'mean','reg_ow':False,'reg_channel':self.channel_seg} # Default kwargs for image registration
-    #     if kwargs: # Replace default val with input args
-    #         for k,v in kwargs.items():
-    #             if k in defReg:
-    #                 defReg[k] = v
-    #             elif k in defSMO:
-    #                 defSMO[k] = v
-    #             else:
-    #                 raise AttributeError(f"kwargs '{k}' is not valid. Only accepted entries are:\n\t- for background substraction: {list(defSMO.keys())}\n\t- for image registration: {list(defReg.keys())}")
-        
-    #     # Prepare settings for image seq
-    #     if not hasattr(self,'exp_dict'):
-    #         self.exp_dict = {}
-        
-    #     # Load exp_para
-    #     print(f"Adding {exp_path} experiment:\n")
-    #     if exists(join(sep,exp_path+'exp_settings.pickle')):
-    #         with open(join(sep,exp_path+'exp_settings.pickle'),'rb') as pickfile:
-    #                 exp_para = pickle.load(pickfile)
-    #                 self.exp_dict[exp_path] = exp_para
-    #     else:
-
-        
-    #     # Create image seqs
-        
-        
-    #     # Add class para to exp_para and Get all the path for ACTIVE experiments
-    #     self.exp_folder_path = []
-    #     for k in self.exp_dict.keys():
-    #         self.exp_dict[k]['channel_list'] = self.channel_list
-    #         self.exp_dict[k]['channel_seg'] = self.channel_seg
-    #         if self.exp_dict[k]['status']=='active':
-    #             self.exp_folder_path.append(k)
-
-    #     # Apply reg or bg_sub
-    #     for exp_path in self.exp_folder_path:
-    #         # Apply bg_sub
-    #         if bg_sub:
-    #             if bg_sub == 'Auto':
-    #                 if self.exp_dict[exp_path]['bg_sub']=='Auto':
-    #                     print(f"--> 'Auto' background substraction already applied on {exp_path} with: sigma={self.exp_dict[exp_path]['smo_sigma']} and size={self.exp_dict[exp_path]['smo_size']}")
-    #                 else:
-    #                     self.smo_bg_sub(imgFold_path=join(sep,exp_path+sep,'Images'),exp_para=self.exp_dict[exp_path],channel_list=self.channel_list,**defSMO)
-                
-    #             elif bg_sub == 'Manual':
-    #                 if self.exp_dict[exp_path]['bg_sub']=='Manual':
-    #                     print(f"--> 'Manual' background substraction already applied on {exp_path}")
-    #                 else:
-    #                     self.man_bg_sub(imgFold_path=join(sep,exp_path+sep,'Images'),exp_para=self.exp_dict[exp_path],channel_list=self.channel_list)
-    #         # Apply reg
-    #         if reg:
-    #             self.exp_dict[exp_path]['reg'] = self.im_reg(imgFold_path=join(sep,exp_path+sep,'Images'),exp_para=self.exp_dict[exp_path],channel_list=self.channel_list,**defReg)
-   
-################################################################
-
-
-
-# def initiate_config(parent_folder,channel_list,channel_seg,file_type=".nd2",
-#                     bg_method='Auto',exclude_channel=None,imseq_ow=False,do_reg=False,**kwargs):
-#     """Function that initiate the Config class. It will contain all necessary variables to run the selected pipeline.
-#     It will convert all 2D files (atm) of the selected file_type in the parent_folder and subsequent folders into
-#     an image sequence. It can also apply a background substraction and register the images.
-    
-#     If there is more than one conditions, it is recommended to store each condition in subsequent folders, as it will extract 
-#     the name of those folders and store it as a tag for each experiment.
-    
-#     If selected, background substraction will be apply, using the method:
-#         - Manual: manually select an area on the image that will then be substracted to all valid channels.
-#         - Auto: perform automatic bg sub, using the SMO algorithm (https://github.com/maurosilber/SMO). It requires additional args 'sigma' and 'size', see kwargs.
-    
-#     If selected, image registration will be apply, using pystackreg (https://pypi.org/project/pystackreg/) with additional args 'reg_mtd', 'reg_ref' and 'reg_ow', see kwargs.
-#         - Methods:
-#             - translation
-#             - rigid body (translation + rotation)
-#             - scaled rotation (translation + rotation + scaling)
-#             - affine (translation + rotation + scaling + shearing)
-#             - bilinear (non-linear transformation; does not preserve straight lines)
-#         - Reference image:
-#             - previous
-#             - first
-#             - mean
-
-#     Args:
-#         - parent_folder (str): Path of a folder which contain all the image files to be analysied. It can contain many level of subfolders. It will save the path of all the files of the chosen file_type.
-#         - channel_list ([str]): Name of the different channel (of your choice) that will be use to label the image of each channel. The order of the channels depends on the order of channel used during acquisition. For instance, if acquisition was made green channel first then red channel, then channel_list = ['green','red'].
-#         - channel_seg (str): Name of the channel to be segmented
-#         - file_type (str, optional): Extention of the files to analyse. Defaults to ".nd2"
-#         - bg_method (str, optional): (str): Define bg sub method, from 'Auto', 'Manual' or None. Defaults to 'Auto'.
-#         - exclude_channel (str or [str], optional): Name of the channel to exclude from bg sub (e.g. bright field). Defaults to None.
-#         - ow (bool, optional): Overwrite existing images. Defaults to False.
-#         - do_reg (bool, optional): Apply image registration. Defaults to False.
-#         - kwargs (any, optional):
-#             - sigma (float, optional): Standard deviation for the Gaussian kernel. Defaults to 0.
-#             - size (int, optional): Size of the averaging kernel. Should be smaller than foreground. Defaults to 7.
-#             - reg_mtd (str, optional): Registration method to apply, from 'translation','rigid_body','scaled_rotation','affine' or 'bilinear'. Defaults to 'translation'.
-#             - reg_ref (str, optional): Image reference for the transformation, from 'previous', 'first' or 'mean'. Defaults to 'mean'.
-#             - ow_reg (bool, optional): Overwrite existing registered images. Defaults to False.
-
-#     Returns:
-#         - config (obj): class Config object.
-
-#     Note:
-#         3D images will be soon implemented"""
-
-#     config = Config(parent_folder=parent_folder,channel_list=channel_list,channel_seg=channel_seg,exclude_channel=exclude_channel,file_type=file_type)
-#     config.create_imseq(bg_method=bg_method,imseq_ow=imseq_ow,reg=do_reg,**kwargs)
-#     return config
