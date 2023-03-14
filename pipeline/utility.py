@@ -269,7 +269,7 @@ class Utility():
     
     #### Utility for pre-processing images
     @staticmethod
-    def im_reg(imgFold_path,reg_channel,reg_mtd,reg_ref,reg_ow):
+    def im_reg(imgFold_path,reg_channel,reg_mtd,chan_shift,reg_ref,reg_ow):
         # Get the exp_path and load exp_para
         exp_path = sep.join(imgFold_path.split(sep)[:-1])
         exp_prop = Utility.open_exp_prop(exp_path=exp_path)
@@ -307,6 +307,24 @@ class Utility():
                 elif reg_mtd=='affine':          sr = StackReg(StackReg.AFFINE)
                 elif reg_mtd=='bilinear':        sr = StackReg(StackReg.BILINEAR)
 
+                # Apply chan_shift
+                if chan_shift:
+                    for f in range(exp_para['t']):
+                        # Load ref
+                        ref = Utility.load_stack(imgFold_path=imgFold_path,channel_list=reg_channel,input_range=[f])
+                        # Load im
+                        frame_name = '_f%04d'%(f+1)
+                        for chan in exp_para['channel_list']:
+                            im = Utility.load_stack(imgFold_path=imgFold_path,channel_list=chan,input_range=[f])
+                            for z in range(exp_para['z']):
+                                # Build z name
+                                z_name = '_z%04d.tif'%(z+1)
+                                # Apply transfo
+                                reg_im = sr.register_transform(ref[z,...],im[z,...])
+                                # Save
+                                reg_im[reg_im<0] = 0
+                                imwrite(join(sep,reg_im_path+sep,chan+frame_name+z_name),reg_im.astype(np.uint16))
+
                 if reg_ref=='first':
                     # Load ref image
                     if exp_para['z']==1: ref = Utility.load_stack(imgFold_path=imgFold_path,channel_list=reg_channel,input_range=[0])
@@ -321,7 +339,6 @@ class Utility():
                         frame_name = '_f%04d'%(f+1)
                         for chan in exp_para['channel_list']:
                             # Load image to transform
-                            print(reg_channel,chan)
                             im = Utility.load_stack(imgFold_path=imgFold_path,channel_list=chan,input_range=[f])
                             for z in range(exp_para['z']):
                                 # Build z name
@@ -853,55 +870,59 @@ class Utility():
                     imwrite(join(sep,mask_ref_path+sep,mask_name),mask_ref[m,...].astype(np.uint16))
         return mask_ref
 
-    @staticmethod
-    def centroids(mask_stack,frames,z_slice,exp_name=None): 
+    @staticmethod # [ ]: Added column 'time' to df with frames as time
+    def centroids(mask_stack,frames_len,z_slice,time=None,exp_name=None): 
         
         # Create dict to store analyses of the cell
-        if z_slice==1:
-            keys = ['Cell','Frames','Cent.X','Cent.Y','Mask_ID']
-        else:
-            keys = ['Cell','Frames','Cent.X','Cent.Y','Cent.Z','Mask_ID']
+        if z_slice==1: keys = ['Cell','Frames','time','Cent.X','Cent.Y','Mask_ID']
+        else: keys = ['Cell','Frames','time','Cent.X','Cent.Y','Cent.Z','Mask_ID']
         dict_analysis = {k:[] for k in keys}
         
+        # Add time?
+        if time: frames = time
+        else: frames = range(frames_len)
+
         # Get centroids                                         
         for obj in list(np.unique(mask_stack))[1:]:
-            if exp_name:
-                cell_name = f"{exp_name}_cell{obj}"
-            else:
-                cell_name = f"unknownexp_cell{obj}"
+            if exp_name: cell_name = f"{exp_name}_cell{obj}"
+            else: cell_name = f"unknownexp_cell{obj}"
             
             if z_slice==1:
-                if frames==1:
+                if frames_len==1:
                     dict_analysis['Cell'].append(cell_name)
                     dict_analysis['Frames'].append(1)
+                    dict_analysis['time'].append(0)
                     y,x = np.where(mask_stack==obj)
                     dict_analysis['Mask_ID'].append(obj)
                     dict_analysis['Cent.Y'].append(round(np.nanmean(y)))
                     dict_analysis['Cent.X'].append(round(np.nanmean(x)))
                 else:
-                    for f in range(frames):
+                    for f,t in enumerate(frames):
                         y,x = np.where(mask_stack[f,...]==obj)
                         if y.size > 0: 
                             dict_analysis['Cell'].append(cell_name)
                             dict_analysis['Frames'].append(f+1)
+                            dict_analysis['time'].append(t)
                             dict_analysis['Mask_ID'].append(obj)
                             dict_analysis['Cent.Y'].append(round(np.nanmean(y)))
                             dict_analysis['Cent.X'].append(round(np.nanmean(x)))
             else:
-                if frames==1:
+                if frames_len==1:
                     z,y,x = np.where(mask_stack==obj)
                     dict_analysis['Cell'].append(cell_name)
                     dict_analysis['Frames'].append(1)
+                    dict_analysis['time'].append(0)
                     dict_analysis['Mask_ID'].append(obj)
                     dict_analysis['Cent.Z'].append(round(np.nanmean(z)))
                     dict_analysis['Cent.Y'].append(round(np.nanmean(y)))
                     dict_analysis['Cent.X'].append(round(np.nanmean(x)))
                 else:
-                    for f in range(frames):
+                    for f,t in enumerate(frames):
                         z,y,x = np.where(mask_stack[f,...]==obj)
                         if y.size > 0:
                             dict_analysis['Cell'].append(cell_name)
                             dict_analysis['Frames'].append(f+1)
+                            dict_analysis['time'].append(t)
                             dict_analysis['Mask_ID'].append(obj)
                             dict_analysis['Cent.Z'].append(round(np.nanmean(z)))
                             dict_analysis['Cent.Y'].append(round(np.nanmean(y)))
@@ -958,6 +979,56 @@ class Utility():
             fig = ax.get_figure()
             fig.savefig(join(sep,savedir+sep,f'{title}.pdf'))
         return plt
+
+    @staticmethod
+    def get_ratio(lst):
+        combi = []
+        for chan in lst:
+            t_lst = lst.copy(); t_lst.remove(chan)
+            combi += [(chan,x) for x in t_lst]
+        return combi
+    
+    @staticmethod
+    def transfo_df(df_input,channel_list,stim_time,start_baseline=0,posCont_time=None):
+        # Apply all possible ratio
+        pair_lst = Utility.get_ratio(channel_list)
+        for c1,c2 in pair_lst:
+            df_input[f"{c1}/{c2}"] = df_input[c1]/df_input[c2]
+        
+        # Add 'condition_label'
+        df_input['condition_label'] = 'other'
+        df_input.loc[(df_input['time']>=start_baseline)&(df_input['time']<stim_time),'condition_label'] = 'basal'
+        df_input.loc[df_input['time']>=stim_time,'condition_label'] = 'stimulus'
+        if posCont_time: df_input.loc[df_input['time']>=posCont_time,'condition_label'] = 'positive_control'
+
+        # Apply all possible deltaF
+        deltaF_lst = channel_list+[f"{c1}/{c2}" for c1,c2 in pair_lst]
+        bi_lst = deltaF_lst+[f'deltaF_{k}' for k in deltaF_lst]
+        new_col = [f"deltaF_{k}" for k in deltaF_lst]+[f"{col}_perCondition" for col in bi_lst]
+        df_input = df_input.reindex(columns=df_input.columns.to_list()+new_col,fill_value=0)
+        for cell in df_input['Cell'].unique():
+            df = df_input.loc[(df_input['Cell']==cell)]
+            # Apply all possible deltaF
+            for col_delta in deltaF_lst:
+                f0 = df.loc[df['condition_label']=='basal',col_delta].mean()
+                if posCont_time: 
+                    fmax_val = df.loc[df['condition_label']=='positive_control',col_delta].max()
+                    perf0 = fmax_val-f0
+                else: perf0 = f0
+                dfperf0 = (df[col_delta]-f0)/perf0
+                df_input.loc[dfperf0.index,f'deltaF_{col_delta}'] = dfperf0.values
+            # Add all condition value
+            for col in bi_lst:
+                df_input.loc[(df_input['Cell']==cell)&
+                             (df_input['condition_label']=='basal'),
+                             f"{col}_perCondition"] = df_input.loc[(df_input['Cell']==cell)&
+                                                                   (df_input['condition_label']=='basal'),col].mean()
+                df_input.loc[(df_input['Cell']==cell)&
+                             (df_input['condition_label']=='stimulus'),
+                             f"{col}_perCondition"] = df_input.loc[(df_input['Cell']==cell)&
+                                                                   (df_input['condition_label']=='stimulus'),col].mean()
+        return df_input
+
 
 
 ##############################
