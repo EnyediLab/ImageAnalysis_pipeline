@@ -76,7 +76,7 @@ class Experiments(Utility):
         """
         # Unpack all kwargs
         defSMO = {'sigma':0.0,'size':7} # Default kwargs for Auto bgsub methods
-        defReg = {'reg_mtd':'translation','reg_ref':'mean','reg_ow':False,'reg_channel':self.channel_seg} # Default kwargs for image registration
+        defReg = {'reg_mtd':'translation','reg_ref':'mean','reg_ow':False,'reg_channel':self.channel_seg,'chan_shift':False} # Default kwargs for image registration
         if kwargs: # Replace default val with input args
             for k,v in kwargs.items():
                 if k in defReg:
@@ -241,17 +241,17 @@ class Experiments(Utility):
             # Update exp_dict
             self.exp_dict[path] = self.exps[exp_lst.index(path)].exp_prop
         
-    def exp_track_cells(self,maskFold='Masks_CP',exp_path=None,channel_seg=None,stitch_threshold=0.75,shape_threshold=0.2,stitch_ow=False,n_mask=2):
+    def exp_track_cells(self,maskFold='Masks_CP',exp_path=None,channel_seg=None,stitch_threshold=0.75,shape_threshold=0.2,stitch_ow=False,n_mask=5):
         """Track masks of 2D cell lines experiment only.
 
         Args:
             - maskFold (str, optional): Name of masks folder to process. Defaults to 'Masks_CP'.
             - exp_path (str or [str], optional): List of all experiment to process. If None, then it will process all. Defaults to None.
             - channel_seg (str, optional): Label of channel to segment. If None, it will use channel_seg. Defaults to None.
-            - stitch_threshold (float, optional): Threshold of NON-overlap between 2 cells to be stitched together. Defaults to 0.25.
-            shape_threshold (float, optional): [description]. Defaults to 0.2.
-            stitch_ow (bool, optional): [description]. Defaults to False.
-            n_mask (int, optional): [description]. Defaults to 2.
+            - stitch_threshold (float, optional): Minimum threshold of overlap between 2 cells to be stitched together. Defaults to 0.75.
+            - shape_threshold (float, optional): Allowed percentage for a cell to change shape/size within the track (detect merge/split cells). Defaults to 0.2.
+            - n_mask (int, optional): Minimum appearance of mask with the track to be accepted as cell (detect false positive cells, e.g. floating cells). Defaults to 5.
+            - stitch_ow (bool, optional): Overwrite existing tracked masks. Defaults to False.
         """
         # Get channel and path
         chan_seg, exp_folder_path = self.exp_get_chanNpath(channel_seg=channel_seg,exp_path=exp_path)

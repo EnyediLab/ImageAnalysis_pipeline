@@ -1,8 +1,9 @@
 from experiments import Exp_Indiv
 from os import sep
-from os.path import join
+from os.path import join,exists
 import numpy as np
 import pandas as pd
+import scipy.stats as stats
 
 
 class Analysis(Exp_Indiv):
@@ -11,8 +12,12 @@ class Analysis(Exp_Indiv):
 
         self.tag = self.exp_prop['metadata']['tag']
         self.pixSize = self.exp_prop['metadata']['pixel_microns']
+        
+        # Convert frames to minutes
+        interval = self.exp_prop['metadata']['interval_sec']
+        self.ts = [0.0]+list(np.round(a=np.linspace(interval,interval*(self.frames-1),self.frames-1)/60,decimals=2))
 
-    def extract_channelData(self,imgFold,maskFold,channel_seg=None,df_ow=False):
+    def extract_channelData(self,imgFold,maskFold,stim_time,start_baseline=0,posCont_time=None,channel_seg=None,df_ow=False): # [ ]: Added column 'time' to df with frames as time
         """
         Function that will extract the mean values of each masks on all the channels at every frames.
         Output is a dataframe.
@@ -50,10 +55,10 @@ class Analysis(Exp_Indiv):
                 mask_name = ['']
             
             # Create df to store analyses of the cell
-            if maskFold == 'Masks_Class':
-                keys = ['Cell','Frames','tag','exp']+[f"{chan}_{mn}" for mn in mask_name for chan in self.channel_list]+['cell_class','pos_cell']
-            else:
-                keys = ['Cell','Frames','tag','exp']+[f"{chan}_{mn}" for mn in mask_name for chan in self.channel_list]
+            chan_keys = [f"{chan}{'_'+mn}" for mn in mask_name for chan in self.channel_list]
+            keys = ['Cell','Frames','time','tag','exp']+chan_keys
+            if maskFold == 'Masks_Class': keys +=['cell_class','pos_cell']
+                
             dict_analysis = {k:[] for k in keys}
             
             # Create tag and exp name
@@ -67,6 +72,7 @@ class Analysis(Exp_Indiv):
                     dict_analysis['tag'].append(self.tag)
                     dict_analysis['exp'].append(exp_name)
                     dict_analysis['Frames'].append(1)
+                    dict_analysis['time'].append(0)
                     if maskFold == 'Masks_Class':
                         dict_analysis['cell_class'].append(f"if cell is {self.exp_prop['channel_seg']['Masks_Class'][1]}")
                         if obj in pos_lst:
@@ -78,8 +84,9 @@ class Analysis(Exp_Indiv):
                             if self.chan_numb==1: dict_analysis[f"{chan}_{mask_name[i]}"].append(np.nanmean(a=img_stack,where=m==obj))
                             else: dict_analysis[f"{chan}_{mask_name[i]}"].append(np.nanmean(a=img_stack[...,c],where=m==obj))
                 else:
-                    for f in range(self.frames):
+                    for f,t in enumerate(self.ts):
                         dict_analysis['Frames'].append(f+1)
+                        dict_analysis['time'].append(t)
                         dict_analysis['Cell'].append(f"{exp_name}_cell{obj}")
                         dict_analysis['tag'].append(self.tag)
                         dict_analysis['exp'].append(exp_name)
@@ -100,6 +107,10 @@ class Analysis(Exp_Indiv):
             else:
                 self.df_analysis = pd.DataFrame.from_dict(dict_analysis)
             
+            # Transform df
+            self.df_analysis = Analysis.transfo_df(df_input=self.df_analysis,channel_list=chan_keys,
+                                                   stim_time=stim_time,start_baseline=start_baseline,posCont_time=posCont_time)
+
             # Update self.exp_prop and save df
             self.exp_prop['df_analysis'] = self.df_analysis
             self.exp_prop['fct_inputs']['extract_channelData'] = {'imgFold':imgFold,'maskFold':maskFold,'channel_seg':channel_seg}
@@ -141,7 +152,7 @@ class Analysis(Exp_Indiv):
             exp_name = '_'.join([self.tag,split_path[0],split_path[-1]])
 
             # Get centroids
-            df = Analysis.centroids(mask_stack=mask_stack,frames=self.frames,z_slice=self.z_size,exp_name=exp_name)
+            df = Analysis.centroids(mask_stack=mask_stack,frames_len=self.frames,time=self.ts,z_slice=self.z_size,exp_name=exp_name)
             # Create attr if it doesn't exist
             if not hasattr(self, 'df_analysis'):
                 self.df_analysis = df
@@ -221,13 +232,9 @@ class Analysis(Exp_Indiv):
             mask_stack = Analysis.load_mask(maskFold_path=join(sep,self.exp_path+sep,maskFold),channel_seg=chan_seg,z_slice=1)
             if self.frames==1: mask_stack = [mask_stack] # just to be able to run it in the for loop
 
-            # Convert frames to minutes
-            interval = self.exp_prop['metadata']['interval_sec']
-            ts = [0.0]+list(np.round(a=np.linspace(interval,interval*(self.frames-1),self.frames-1)/60,decimals=2))
-            
             # Extract data
             self.df_pixel = pd.DataFrame()
-            for f,t in enumerate(ts):
+            for f,t in enumerate(self.ts):
                 d = {}
                 d['dmap'] = np.round(mask_ref[f,...][mask_stack[f].astype(bool)]*self.pixSize).astype(int)
                 for chan in self.channel_list:
@@ -253,7 +260,19 @@ class Analysis(Exp_Indiv):
             print(f"---> {maskLabel} mask was already created for pixel distance and value already extracted")
             # Load df
             self.df_pixel = pd.read_csv(join(sep,self.exp_path+sep,'df_pixel.csv'))
-    
+
+
+            
+            
+            
+            
+            
+            # # Average baseline and stimulation
+            # df.loc[df['time']<=stim_time,'baseline_avg'] = df.loc[df['time']<=stim_time,col_name].mean()
+            # df.loc[df['time']>stim_time,'stim_avg'] = df.loc[df['time']>stim_time,col_name].mean()
+            
+
+
 
 
     
