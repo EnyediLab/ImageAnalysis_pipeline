@@ -309,6 +309,7 @@ class Utility():
 
                 # Apply chan_shift
                 if chan_shift:
+                    print("---> Applying channel shift first")
                     for f in range(exp_para['t']):
                         # Load ref
                         ref = Utility.load_stack(imgFold_path=imgFold_path,channel_list=reg_channel,input_range=[f])
@@ -320,7 +321,8 @@ class Utility():
                                 # Build z name
                                 z_name = '_z%04d.tif'%(z+1)
                                 # Apply transfo
-                                reg_im = sr.register_transform(ref[z,...],im[z,...])
+                                if exp_para['z']>1: reg_im = sr.register_transform(ref[z,...],im[z,...])
+                                else: reg_im = sr.register_transform(ref,im)
                                 # Save
                                 reg_im[reg_im<0] = 0
                                 imwrite(join(sep,reg_im_path+sep,chan+frame_name+z_name),reg_im.astype(np.uint16))
