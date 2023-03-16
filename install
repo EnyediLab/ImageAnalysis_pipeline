@@ -1,6 +1,6 @@
 ## Install from environement
 conda env create -f environment.yml 
-conda activate cp_base
+conda activate cellpose_2.0
 python -m pip install cellpose --no-deps
 
 ## Install MatlabRuntime on linux

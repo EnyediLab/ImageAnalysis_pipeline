@@ -1,4 +1,4 @@
-name: ImgAnaPip
+name: cellpose_2.0
 channels:
  - pytorch
  - conda-forge
