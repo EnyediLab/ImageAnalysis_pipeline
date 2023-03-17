@@ -129,3 +129,4 @@ dmypy.json
 .pyre/
 in_progress/Functions for data analysis.ipynb
 in_progress/im_reg_test.ipynb
+notebooks/dia.ipynb

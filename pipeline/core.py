@@ -7,6 +7,7 @@ from os.path import join,exists
 from os.path import isdir
 from os import sep,walk
 import matplotlib.pyplot as plt
+from math import ceil
 
 # TODO: implement Docker
 # TODO: write all the docstrings
@@ -484,15 +485,17 @@ class Experiments(Utility):
     def exp_plot_HM(self,col_name,deltaF,maxdt=None,intBin=5,col_lim=[0,2],exp_path=None,savedir=None,row_col=None,figsize=None,cbar_label=r'$\Delta$F/F$_{min}$',**kwargs):
         # Get channel and path
         __, exp_folder_path = self.exp_get_chanNpath(exp_path=exp_path)
-
+        
         # Create the subplot
         if row_col: nrow,ncol = row_col
         else:
-            nrow = round(len(exp_folder_path)/4)
             if len(exp_folder_path)<4: ncol = len(exp_folder_path)
             else: ncol = 4
+            nrow = ceil(len(exp_folder_path)/ncol)
+            ncol = ceil(len(exp_folder_path)/nrow) # Adjust col
+            if nrow*ncol<len(exp_folder_path): nrow += 1
         fig,ax = plt.subplots(nrow,ncol,sharey=True,figsize=figsize)
-
+        
         # upper limit?
         if maxdt:
             if isinstance(maxdt,float) or type(maxdt)==int: maxdmap = maxdt
@@ -513,7 +516,8 @@ class Experiments(Utility):
             # Bin it and plot it
             if maxdt: bin_df = Experiments.pixel_bin(df_pixel=df.loc[df['dmap']<=maxdmap,:].copy(),intBin=intBin,col_name=col_name,deltaF=deltaF)
             else: bin_df = Experiments.pixel_bin(df_pixel=df,intBin=intBin,col_name=col_name,deltaF=deltaF)
-            Experiments.plot_HM(bin_df,title=exp_name,axes=ax[r,c],savedir=savedir,cbar_label=cbar_label,col_lim=col_lim,**kwargs)
+            if nrow==1 and ncol==1: Experiments.plot_HM(bin_df,title=exp_name,axes=ax,savedir=savedir,cbar_label=cbar_label,col_lim=col_lim,**kwargs)
+            else: Experiments.plot_HM(bin_df,title=exp_name,axes=ax[r,c],savedir=savedir,cbar_label=cbar_label,col_lim=col_lim,**kwargs)
             # Adjust the axes
             c += 1
             if c==ncol: c = 0; r+=1
