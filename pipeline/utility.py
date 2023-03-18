@@ -129,18 +129,11 @@ class Utility():
                 if any(scandir(im_folder)) and not imseq_ow:
                     # Log
                     print(f"-> Image sequence already exists for exp.: {exp_path}")
-                    # Update and load dict
-                    exp_prop = temp_exp_dict[exp_path]
-                    exp_prop['status'] = 'active'
-                    exp_prop['fct_inputs']['create_imseq'] = {'img_path':img_path,
-                                                                'imseq_ow':imseq_ow,
-                                                                'channel_list':channel_list,
-                                                                'file_type':file_type,
-                                                                'true_channel_list':true_channel_list,}
-                    exp_dict[exp_path] = exp_prop
-                    # If old folder without exp_properties, then add it
+                    # Update exp_dict
                     if not exists(join(sep,exp_path+sep,'exp_properties.pickle')):
+                        # If old folder without exp_properties, then add it
                         Utility.save_exp_prop(exp_path=exp_path,exp_prop=temp_exp_dict[exp_path])
+                    else: exp_dict[exp_path] = Utility.open_exp_prop(exp_path=exp_path)
                 else:
                     # Log
                     print(f"-> Image sequence is being created for exp.: {exp_path}")

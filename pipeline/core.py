@@ -94,8 +94,11 @@ class Experiments(Utility):
                                                    true_channel_list=true_channel_list))
         
         # Apply reg or bg_sub
+        self.exp_folder_path = []
         for k in self.exp_dict.keys():
             if self.exp_dict[k]['status']=='active':
+                self.exp_folder_path.append(k)
+                # Apply bg?
                 if bg_sub == 'Auto':
                     if self.exp_dict[k]['img_preProcess']['bg_sub']!='Auto':
                         self.exp_dict[k] = Experiments.smo_bg_sub(imgFold_path=join(sep,k+sep,'Images'),**defSMO)
@@ -104,6 +107,7 @@ class Experiments(Utility):
                     if self.exp_dict[k]['img_preProcess']['bg_sub']!='Manual':
                         self.exp_dict[k] = Experiments.man_bg_sub(imgFold_path=join(sep,k+sep,'Images'))
                     else: print(f"--> 'Manual' background substraction already applied on {k}")
+                # Apply reg?
                 if reg: self.exp_dict[k] = Experiments.im_reg(imgFold_path=join(sep,k+sep,'Images'),**defReg)
     
     def remove_exp(self,exp_path):
