@@ -100,11 +100,10 @@ class Utility():
             if not isdir(exp_path):
                 mkdir(exp_path)
             exp_pathS.append(exp_path)
-
             # Save para
             exp_para['tag'] = path_split[-2]
             exp_para['v_idx'] = serie+1
-            exp_prop = {'metadata':exp_para,'img_preProcess':{'bg_sub':'None','reg':False,'blur':False},
+            exp_prop = {'metadata':exp_para.copy(),'img_preProcess':{'bg_sub':'None','reg':False,'blur':False},
             'fct_inputs':{},'masks_process':{}}
             temp_exp_dict[exp_path] = exp_prop
         
@@ -116,14 +115,13 @@ class Utility():
         nd_obj = ND2Reader(img_path)
         chan_lst,exp_pathS,temp_exp_dict = Utility.modifed_ND2meta(in_var=nd_obj,channel_list=channel_list,true_channel_list=true_channel_list,img_path=img_path)
         exp_dict = {} # Create empty dict
-        
         ### Create the image sequence
         for exp_path in exp_pathS:
             # Create a folder to store all the images
             im_folder = join(sep,exp_path+sep,'Images')
             if not isdir(im_folder):
                 mkdir(im_folder)
-            
+        
             # If imseq exists just load stack. Else re-/create imseq
             if exists(join(sep,exp_path+sep,'REMOVED_EXP.txt')):
                     print(f"-> Exp.: {exp_path} has been removed\n")
@@ -148,7 +146,7 @@ class Utility():
                     exp_prop = temp_exp_dict[exp_path]
                     exp_para = exp_prop['metadata']
                     exp_prop['status'] = 'active'
-  
+                    
                     # Create stack and save image sequence                   
                     for chan in channel_list:
                         for frame in range(exp_para['t']):
