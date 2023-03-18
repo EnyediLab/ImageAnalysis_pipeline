@@ -31,15 +31,11 @@ class Experiments(Utility):
         self.file_type = file_type
        
         # Get the path of all the nd2 files in all subsequent folders/subfolders and exp_dict if available
-        self.exp_dict = {}
         self.imgS_path = []
         for root , subs, files in walk(self.parent_folder):
             for f in files:
                 if f.endswith(self.file_type):
                     self.imgS_path.append(join(sep,root+sep,f))
-                if f.__contains__('exp_properties.pickle'):
-                    exp_prop = Utility.open_exp_prop(exp_path=root)
-                    self.exp_dict[root] = exp_prop
         self.imgS_path.sort()
         self.channel_list = channel_list
         
@@ -80,10 +76,8 @@ class Experiments(Utility):
         defReg = {'reg_mtd':'translation','reg_ref':'mean','reg_ow':False,'reg_channel':self.channel_seg,'chan_shift':False} # Default kwargs for image registration
         if kwargs: # Replace default val with input args
             for k,v in kwargs.items():
-                if k in defReg:
-                    defReg[k] = v
-                elif k in defSMO:
-                    defSMO[k] = v
+                if k in defReg: defReg[k] = v
+                elif k in defSMO: defSMO[k] = v
                 else:
                     raise AttributeError(f"kwargs '{k}' is not valid. Only accepted entries are:\n\t- for background substraction: {list(defSMO.keys())}\n\t- for image registration: {list(defReg.keys())}")
         if imseq_ow:
@@ -93,33 +87,24 @@ class Experiments(Utility):
         print(f"Opening all '{self.file_type}' files:\n")
         
         # Create image seqs
+        self.exp_dict = {}
         for img_path in self.imgS_path:
-            self.exp_dict.update(self.create_imseq(img_path=img_path,imseq_ow=imseq_ow,channel_list=self.channel_list,file_type=self.file_type,true_channel_list=true_channel_list))
+            self.exp_dict.update(self.create_imseq(img_path=img_path,imseq_ow=imseq_ow,
+                                                   channel_list=self.channel_list,file_type=self.file_type,
+                                                   true_channel_list=true_channel_list))
         
-        # Add class para to exp_para and Get all the path for ACTIVE experiments
-        self.exp_folder_path = []
+        # Apply reg or bg_sub
         for k in self.exp_dict.keys():
             if self.exp_dict[k]['status']=='active':
-                self.exp_folder_path.append(k)
-
-        # Apply reg or bg_sub
-        for exp_path in self.exp_folder_path:
-            # Apply bg_sub
-            if bg_sub:
                 if bg_sub == 'Auto':
-                    if self.exp_dict[exp_path]['img_preProcess']['bg_sub']=='Auto':
-                        print(f"--> 'Auto' background substraction already applied on {exp_path} with: sigma={self.exp_dict[exp_path]['fct_inputs']['smo_bg_sub']['smo_sigma']} and size={self.exp_dict[exp_path]['fct_inputs']['smo_bg_sub']['smo_size']}")
-                    else:
-                        self.exp_dict[exp_path] = Experiments.smo_bg_sub(imgFold_path=join(sep,exp_path+sep,'Images'),**defSMO)
-                
+                    if self.exp_dict[k]['img_preProcess']['bg_sub']!='Auto':
+                        self.exp_dict[k] = Experiments.smo_bg_sub(imgFold_path=join(sep,k+sep,'Images'),**defSMO)
+                    else: print(f"--> 'Auto' background substraction already applied on {k}")
                 elif bg_sub == 'Manual':
-                    if self.exp_dict[exp_path]['bg_sub']=='Manual':
-                        print(f"--> 'Manual' background substraction already applied on {exp_path}")
-                    else:
-                        self.exp_dict[exp_path] = Experiments.man_bg_sub(imgFold_path=join(sep,exp_path+sep,'Images'))
-            # Apply reg
-            if reg:
-                self.exp_dict[exp_path] = Experiments.im_reg(imgFold_path=join(sep,exp_path+sep,'Images'),**defReg)
+                    if self.exp_dict[k]['img_preProcess']['bg_sub']!='Manual':
+                        self.exp_dict[k] = Experiments.man_bg_sub(imgFold_path=join(sep,k+sep,'Images'))
+                    else: print(f"--> 'Manual' background substraction already applied on {k}")
+                if reg: self.exp_dict[k] = Experiments.im_reg(imgFold_path=join(sep,k+sep,'Images'),**defReg)
     
     def remove_exp(self,exp_path):
         """Remove experiment to be further processed and analysed. All existing processed images will NOT be deleted.
