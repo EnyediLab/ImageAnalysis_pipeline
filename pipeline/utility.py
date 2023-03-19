@@ -1372,6 +1372,7 @@ def draw_polygons(img):
     img2  = img.copy()
     alpha = 1; beta = 0
     togglemask = 0; togglelabel = 0
+    conbri = 0
     while f!=-1:
         drawing=False; polygons = []; currentPt = []
         # Mouse callback function
@@ -1467,7 +1468,7 @@ def draw_polygons(img):
             
             # if key != -1:
             #     print(key)
-
+            
             # press 'q' to exit.
             if key == ord("q"):
                 f = -1

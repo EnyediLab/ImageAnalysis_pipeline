@@ -116,8 +116,12 @@ class Experiments(Utility):
         Args:
             exp_path (str): Experiment path to be removed (Folder name should start with 's' followed by a number)
         """
-        open(join(sep,exp_path+sep,'REMOVED_EXP.txt'),'w')
-        self.exp_dict[exp_path]['status'] = 'REMOVED'
+        if not exists(join(sep,exp_path+sep,'REMOVED_EXP.txt')):
+            open(join(sep,exp_path+sep,'REMOVED_EXP.txt'),'w')
+            self.exp_dict[exp_path]['status'] = 'REMOVED'
+        
+            if hasattr(self,'exp_folder_path'):
+                self.exp_folder_path.remove(exp_path)
     
     def exp_get_chanNpath(self,channel_seg=None,exp_path=None):
         # Get channel
@@ -471,9 +475,22 @@ class Experiments(Utility):
                 # Save conddf
                 conddf_pixel.to_csv(join(sep,self.parent_folder+sep,tag+sep,'conddf_pixel.csv'),index=False)
 
-    def exp_plot_HM(self,col_name,deltaF,maxdt=None,intBin=5,col_lim=[0,2],exp_path=None,savedir=None,row_col=None,figsize=None,cbar_label=r'$\Delta$F/F$_{min}$',**kwargs):
+    def pre_plotHM(self,exp_path,maxdt=None):
         # Get channel and path
         __, exp_folder_path = self.exp_get_chanNpath(exp_path=exp_path)
+        
+        # upper limit?
+        if maxdt:
+            if isinstance(maxdt,float) or type(maxdt)==int: maxdmap = maxdt
+            elif isinstance(maxdt,bool): 
+                max_lst = [pd.read_csv(join(sep,path+sep,'df_pixel.csv')).dmap.max() for path in exp_folder_path]
+                maxdmap = min(max_lst)
+        else: maxdmap = None
+        return exp_folder_path,maxdmap
+   
+    def exp_plot_indHM(self,col_name,deltaF,maxdt=None,intBin=5,col_lim=[0,2],exp_path=None,savedir=None,row_col=None,figsize=None,cbar_label=r'$\Delta$F/F$_{min}$',**kwargs):
+        # Get attribute
+        exp_folder_path,maxdmap = self.pre_plotHM(exp_path=exp_path,maxdt=maxdt)
         
         # Create the subplot
         if row_col: nrow,ncol = row_col
@@ -485,15 +502,7 @@ class Experiments(Utility):
             if nrow*ncol<len(exp_folder_path): nrow += 1
         fig,ax = plt.subplots(nrow,ncol,sharey=True,figsize=figsize)
         
-        # upper limit?
-        if maxdt:
-            if isinstance(maxdt,float) or type(maxdt)==int: maxdmap = maxdt
-            elif isinstance(maxdt,bool): 
-                max_lst = [pd.read_csv(join(sep,path+sep,'df_pixel.csv')).dmap.max() for path in exp_folder_path]
-                maxdmap = min(max_lst)
-        
-        # Recall all experiment
-        self.df_pixel_lst = []
+        # plot HM
         r = 0; c = 0 # Initialise the axes
         for path in exp_folder_path:
             # Create tag and exp name
@@ -501,7 +510,6 @@ class Experiments(Utility):
             exp_name = '_'.join([path.split(sep)[-2],split_path[0],split_path[-1]])
             # Load df
             df = pd.read_csv(join(sep,path+sep,'df_pixel.csv'))
-            self.df_pixel_lst.append(df)
             # Bin it and plot it
             if maxdt: bin_df = Experiments.pixel_bin(df_pixel=df.loc[df['dmap']<=maxdmap,:].copy(),intBin=intBin,col_name=col_name,deltaF=deltaF)
             else: bin_df = Experiments.pixel_bin(df_pixel=df,intBin=intBin,col_name=col_name,deltaF=deltaF)
@@ -511,6 +519,39 @@ class Experiments(Utility):
             c += 1
             if c==ncol: c = 0; r+=1
     
+    def exp_plot_condHM(self,col_name,deltaF,maxdt=None,intBin=5,col_lim=[0,2],exp_path=None,savedir=None,row_col=None,figsize=None,cbar_label=r'$\Delta$F/F$_{min}$',**kwargs):
+        # Get attribute
+        __,maxdmap = self.pre_plotHM(exp_path=exp_path,maxdt=maxdt)
+        if not hasattr(self,'masterdf_pixel'):
+            self.masterdf_pixel = pd.read_csv(join(sep,self.parent_folder+sep,'masterdf_pixel.csv'))
+        # Get tags
+        tag_lst = [tag for tag in self.masterdf_pixel['tag'].unique()]
+
+        # Create the subplot
+        if row_col: nrow,ncol = row_col
+        else:
+            if len(tag_lst)<4: ncol = len(tag_lst)
+            else: ncol = 4
+            nrow = ceil(len(tag_lst)/ncol)
+            ncol = ceil(len(tag_lst)/nrow) # Adjust col
+            if nrow*ncol<len(tag_lst): nrow += 1
+        fig,ax = plt.subplots(nrow,ncol,sharey=True,figsize=figsize)
+
+        # plot HM
+        r = 0; c = 0 # Initialise the axes
+        for tag in self.masterdf_pixel['tag'].unique():
+            # Load df
+            df = self.masterdf_pixel.loc[self.masterdf_pixel['tag']==tag,:].copy()
+            # Bin it and plot it
+            if maxdt: bin_df = Experiments.pixel_bin(df_pixel=df.loc[df['dmap']<=maxdmap,:].copy(),intBin=intBin,col_name=col_name,deltaF=deltaF)
+            else: bin_df = Experiments.pixel_bin(df_pixel=df,intBin=intBin,col_name=col_name,deltaF=deltaF)
+            if nrow==1 and ncol==1: Experiments.plot_HM(bin_df,title=tag,axes=ax,savedir=savedir,cbar_label=cbar_label,col_lim=col_lim,**kwargs)
+            else: Experiments.plot_HM(bin_df,title=tag,axes=ax[r,c],savedir=savedir,cbar_label=cbar_label,col_lim=col_lim,**kwargs)
+            # Adjust the axes
+            c += 1
+            if c==ncol: c = 0; r+=1
+
+
     # TODO: def add_exp_para_var()
     
     # TODO: def read_exp_para()

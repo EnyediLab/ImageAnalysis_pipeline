@@ -433,6 +433,10 @@ class Exp_Indiv(Utility):
                 data[y_head] = data[y_head]/pixel_microns
             
             # get framenumber out of timestamp
+            if 'min' in t_head:
+                interval = interval/60
+            elif 'h' in t_head:
+                interval = interval/3600
             if timecolumn:
                 data[t_head] = round(data[t_head]/interval)
             else:
