@@ -552,7 +552,7 @@ class Utility():
         return batches
     
     @staticmethod
-    def load_mask(maskFold_path,channel_seg,mask_shape=None,z_slice=None):
+    def load_mask(maskFold_path,channel_seg,mask_shape=None,z_slice=None,input_range=None):
         if not any(channel_seg in file for file in listdir(maskFold_path)):
             raise AttributeError(f'No masks was found for the selected segmented channel: {channel_seg}')
         
@@ -561,6 +561,11 @@ class Utility():
         exp_prop = Utility.open_exp_prop(exp_path=exp_path)
         exp_para = exp_prop['metadata']
         if z_slice: exp_para['z'] = z_slice
+
+        if input_range:
+            frame_range = input_range
+        else:
+            frame_range = range(exp_para['t'])
 
         # Load masks
         if mask_shape:
@@ -572,7 +577,7 @@ class Utility():
             # load mask files
             if exp_para['z']>1 and exp_para['t']>1:
                 exp_list = []
-                for f in range(exp_para['t']):
+                for f in frame_range:
                     z_lst = []
                     for z in range(exp_para['z']):
                         for im in sorted(listdir(maskFold_path)):
@@ -590,7 +595,7 @@ class Utility():
             # load mask files
             if exp_para['z']>1 and exp_para['t']>1:
                 exp_list = []
-                for f in range(exp_para['t']):
+                for f in frame_range:
                     z_lst = []
                     for z in range(exp_para['z']):
                         for im in sorted(listdir(maskFold_path)):
@@ -871,7 +876,7 @@ class Utility():
                     imwrite(join(sep,mask_ref_path+sep,mask_name),mask_ref[m,...].astype(np.uint16))
         return mask_ref
 
-    @staticmethod # [ ]: Added column 'time' to df with frames as time
+    @staticmethod
     def centroids(mask_stack,frames_len,z_slice,time=None,exp_name=None): 
         
         # Create dict to store analyses of the cell
@@ -962,7 +967,7 @@ class Utility():
         return bin_df.fillna(0)
 
     @staticmethod
-    def plot_HM(df,title,axes=None,savedir=None,cbar_label=r'$\Delta$F/F$_{min}$',col_lim=[0,2],**kwargs):
+    def plot_HM(df,title,axes=None,savedir=None,cbar_label=r'$\Delta$F/F$_{min}$',col_lim=[0,2],**kwargs): #BUG save individual figure
         # Get kwargs for sb.heatmap
         plot_args = {'cmap':'jet','yticklabels':10,'xticklabels':5,'cbar_kws':{'label': cbar_label},
                         'vmin':col_lim[0],'vmax':col_lim[1]}
@@ -990,7 +995,7 @@ class Utility():
         return combi
     
     @staticmethod
-    def transfo_df(df_input,channel_list,stim_time,start_baseline=0,posCont_time=None):
+    def transfo_df(df_input,channel_list,stim_time=None,start_baseline=0,posCont_time=None):
         # Apply all possible ratio
         pair_lst = Utility.get_ratio(channel_list)
         for c1,c2 in pair_lst:
@@ -998,36 +1003,38 @@ class Utility():
         
         # Add 'condition_label'
         df_input['condition_label'] = 'other'
-        df_input.loc[(df_input['time']>=start_baseline)&(df_input['time']<stim_time),'condition_label'] = 'basal'
-        df_input.loc[df_input['time']>=stim_time,'condition_label'] = 'stimulus'
+        if stim_time: 
+            df_input.loc[(df_input['time']>=start_baseline)&(df_input['time']<stim_time),'condition_label'] = 'basal'
+            df_input.loc[df_input['time']>=stim_time,'condition_label'] = 'stimulus'
         if posCont_time: df_input.loc[df_input['time']>=posCont_time,'condition_label'] = 'positive_control'
 
         # Apply all possible deltaF
-        deltaF_lst = channel_list+[f"{c1}/{c2}" for c1,c2 in pair_lst]
-        bi_lst = deltaF_lst+[f'deltaF_{k}' for k in deltaF_lst]
-        new_col = [f"deltaF_{k}" for k in deltaF_lst]+[f"{col}_perCondition" for col in bi_lst]
-        df_input = df_input.reindex(columns=df_input.columns.to_list()+new_col,fill_value=0)
-        for cell in df_input['Cell'].unique():
-            df = df_input.loc[(df_input['Cell']==cell)]
-            # Apply all possible deltaF
-            for col_delta in deltaF_lst:
-                f0 = df.loc[df['condition_label']=='basal',col_delta].mean()
-                if posCont_time: 
-                    fmax_val = df.loc[df['condition_label']=='positive_control',col_delta].max()
-                    perf0 = fmax_val-f0
-                else: perf0 = f0
-                dfperf0 = (df[col_delta]-f0)/perf0
-                df_input.loc[dfperf0.index,f'deltaF_{col_delta}'] = dfperf0.values
-            # Add all condition value
-            for col in bi_lst:
-                df_input.loc[(df_input['Cell']==cell)&
-                             (df_input['condition_label']=='basal'),
-                             f"{col}_perCondition"] = df_input.loc[(df_input['Cell']==cell)&
-                                                                   (df_input['condition_label']=='basal'),col].mean()
-                df_input.loc[(df_input['Cell']==cell)&
-                             (df_input['condition_label']=='stimulus'),
-                             f"{col}_perCondition"] = df_input.loc[(df_input['Cell']==cell)&
-                                                                   (df_input['condition_label']=='stimulus'),col].mean()
+        if stim_time:
+            deltaF_lst = channel_list+[f"{c1}/{c2}" for c1,c2 in pair_lst]
+            bi_lst = deltaF_lst+[f'deltaF_{k}' for k in deltaF_lst]
+            new_col = [f"deltaF_{k}" for k in deltaF_lst]+[f"{col}_perCondition" for col in bi_lst]
+            df_input = df_input.reindex(columns=df_input.columns.to_list()+new_col,fill_value=0)
+            for cell in df_input['Cell'].unique():
+                df = df_input.loc[(df_input['Cell']==cell)]
+                # Apply all possible deltaF
+                for col_delta in deltaF_lst:
+                    f0 = df.loc[df['condition_label']=='basal',col_delta].mean()
+                    if posCont_time: 
+                        fmax_val = df.loc[df['condition_label']=='positive_control',col_delta].max()
+                        perf0 = fmax_val-f0
+                    else: perf0 = f0
+                    dfperf0 = (df[col_delta]-f0)/perf0
+                    df_input.loc[dfperf0.index,f'deltaF_{col_delta}'] = dfperf0.values
+                # Add all condition value
+                for col in bi_lst:
+                    df_input.loc[(df_input['Cell']==cell)&
+                                (df_input['condition_label']=='basal'),
+                                f"{col}_perCondition"] = df_input.loc[(df_input['Cell']==cell)&
+                                                                    (df_input['condition_label']=='basal'),col].mean()
+                    df_input.loc[(df_input['Cell']==cell)&
+                                (df_input['condition_label']=='stimulus'),
+                                f"{col}_perCondition"] = df_input.loc[(df_input['Cell']==cell)&
+                                                                    (df_input['condition_label']=='stimulus'),col].mean()
         return df_input
 
 

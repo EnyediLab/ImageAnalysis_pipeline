@@ -291,7 +291,7 @@ class Experiments(Utility):
             # Update exp_dict
             self.exp_dict[path] = self.exps[exp_lst.index(path)].exp_prop
 
-    def exp_analysis(self,imgFold,maskFold,channel_seg=None,exp_path=None,df_ow=False,do_cell_dist=False,maskLabel='wound'):
+    def exp_analysis(self,imgFold,maskFold,channel_seg=None,exp_path=None,df_ow=False,do_cell_dist=False,maskLabel='wound',stim_time=None,ref_mask_ow=False): #BUG: add basal and thyme
         # Get channel and path
         chan_seg, exp_folder_path = self.exp_get_chanNpath(channel_seg=channel_seg,exp_path=exp_path)
         
@@ -303,11 +303,11 @@ class Experiments(Utility):
             self.masterdf_analysis = pd.DataFrame()
             for path in exp_folder_path:
                 anal_exp = Analysis(exp_path=path,channel_seg=self.channel_seg)
-                anal_exp.extract_channelData(imgFold=imgFold,maskFold=maskFold,channel_seg=chan_seg,df_ow=df_ow)
+                anal_exp.extract_channelData(imgFold=imgFold,maskFold=maskFold,channel_seg=chan_seg,df_ow=df_ow,stim_time=stim_time)
                 anal_exp.extract_centroids(maskFold=maskFold,channel_seg=chan_seg,df_ow=df_ow)
                 if do_cell_dist:
                     # Run ref_mask
-                    anal_exp.cell_distance(imgFold=imgFold,df_ow=df_ow,maskLabel=maskLabel)
+                    anal_exp.cell_distance(imgFold=imgFold,df_ow=df_ow,maskLabel=maskLabel,ref_mask_ow=ref_mask_ow)
                 # Update exp_prop and concat masterdf
                 self.exp_dict[path] = anal_exp.exp_prop
                 self.masterdf_analysis = pd.concat([self.masterdf_analysis,anal_exp.df_analysis])
@@ -319,7 +319,7 @@ class Experiments(Utility):
             self.masterdf_analysis = pd.DataFrame()
             for path in exp_folder_path:
                 if path in exp_lst:
-                    self.exps_analysis[exp_lst.index(path)].extract_channelData(imgFold=imgFold,maskFold=maskFold,channel_seg=chan_seg,df_ow=df_ow)
+                    self.exps_analysis[exp_lst.index(path)].extract_channelData(imgFold=imgFold,maskFold=maskFold,channel_seg=chan_seg,df_ow=df_ow, stim_time=stim_time)
                     self.exps_analysis[exp_lst.index(path)].extract_centroids(maskFold=maskFold,channel_seg=chan_seg,df_ow=df_ow)
                     if do_cell_dist:
                         self.exps_analysis[exp_lst.index(path)].cell_distance(imgFold=imgFold,df_ow=df_ow,maskLabel=maskLabel)
@@ -328,11 +328,11 @@ class Experiments(Utility):
                     self.masterdf_analysis = pd.concat([self.masterdf_analysis,anal_exp.df_analysis])
                 else:
                     anal_exp = Analysis(exp_path=path,channel_seg=self.channel_seg)
-                    anal_exp.extract_channelData(imgFold=imgFold,maskFold=maskFold,channel_seg=chan_seg,df_ow=df_ow)
+                    anal_exp.extract_channelData(imgFold=imgFold,maskFold=maskFold,channel_seg=chan_seg,df_ow=df_ow, stim_time=stim_time)
                     anal_exp.extract_centroids(maskFold=maskFold,channel_seg=chan_seg,df_ow=df_ow)
                     if do_cell_dist:
                         # Run ref_mask
-                        anal_exp.cell_distance(imgFold=imgFold,df_ow=df_ow,maskLabel=maskLabel)
+                        anal_exp.cell_distance(imgFold=imgFold,df_ow=df_ow,maskLabel=maskLabel, ref_mask_ow=ref_mask_ow)
                     # Update exp_prop and concat masterdf
                     self.exp_dict[path] = anal_exp.exp_prop
                     self.masterdf_analysis = pd.concat([self.masterdf_analysis,anal_exp.df_analysis])
@@ -424,7 +424,7 @@ class Experiments(Utility):
                     self.exps.append(exp)
                     self.exp_dict[path] = exp.exp_prop
 
-    def exp_pixel_distance(self,imgFold,maskFold,exp_path=None,channel_seg=None,maskLabel='wound',do_cond_df=False,pix_ana_ow=False): # TODO: modify function to load masterdf if any
+    def exp_pixel_distance(self,imgFold,maskFold,exp_path=None,channel_seg=None,maskLabel='wound',do_cond_df=False,pix_ana_ow=False,ref_mask_ow=False,interval=None,man_tag=None): # TODO: modify function to load masterdf if any
         # Get channel and path
         chan_seg, exp_folder_path = self.exp_get_chanNpath(channel_seg=channel_seg,exp_path=exp_path)
 
@@ -437,11 +437,15 @@ class Experiments(Utility):
             for path in exp_folder_path:
                 # Seg
                 exp = Analysis(exp_path=path,channel_seg=self.channel_seg)
+                if interval: exp.interval = interval
+                if man_tag: 
+                    if path in man_tag: exp.tag = man_tag[path]
                 exp.pixel_distance(imgFold=imgFold,
                                 channel_seg=chan_seg,
                                 maskFold=maskFold,
                                 maskLabel=maskLabel,
                                 pix_ana_ow=pix_ana_ow,
+                                ref_mask_ow=ref_mask_ow,
                                 )
                 # Update list and exp_dict
                 self.exps_analysis.append(exp)
@@ -454,11 +458,13 @@ class Experiments(Utility):
             for path in exp_folder_path:
                 # Seg
                 exp = Analysis(exp_path=path,channel_seg=self.channel_seg)
+                if interval: exp.interval = interval
                 exp.pixel_distance(imgFold=imgFold,
                                 channel_seg=chan_seg,
                                 maskFold=maskFold,
                                 maskLabel=maskLabel,
                                 pix_ana_ow=pix_ana_ow,
+                                ref_mask_ow=ref_mask_ow,
                                 )
                 # Update list and exp_dict
                 self.exps_analysis.append(exp)
@@ -473,7 +479,7 @@ class Experiments(Utility):
                 # Extract df
                 conddf_pixel = self.masterdf_pixel.loc[self.masterdf_pixel['tag']==tag,:].copy()
                 # Save conddf
-                conddf_pixel.to_csv(join(sep,self.parent_folder+sep,tag+sep,'conddf_pixel.csv'),index=False)
+                conddf_pixel.to_csv(join(sep,self.parent_folder+sep,str(tag)+sep,'conddf_pixel.csv'),index=False)
 
     def pre_plotHM(self,exp_path,maxdt=None):
         # Get channel and path
@@ -535,18 +541,19 @@ class Experiments(Utility):
             nrow = ceil(len(tag_lst)/ncol)
             ncol = ceil(len(tag_lst)/nrow) # Adjust col
             if nrow*ncol<len(tag_lst): nrow += 1
-        fig,ax = plt.subplots(nrow,ncol,sharey=True,figsize=figsize)
+        
 
         # plot HM
         r = 0; c = 0 # Initialise the axes
         for tag in self.masterdf_pixel['tag'].unique():
             # Load df
+            fig,ax = plt.subplots(1,1,sharey=True,figsize=figsize)
             df = self.masterdf_pixel.loc[self.masterdf_pixel['tag']==tag,:].copy()
             # Bin it and plot it
             if maxdt: bin_df = Experiments.pixel_bin(df_pixel=df.loc[df['dmap']<=maxdmap,:].copy(),intBin=intBin,col_name=col_name,deltaF=deltaF)
             else: bin_df = Experiments.pixel_bin(df_pixel=df,intBin=intBin,col_name=col_name,deltaF=deltaF)
             if nrow==1 and ncol==1: Experiments.plot_HM(bin_df,title=tag,axes=ax,savedir=savedir,cbar_label=cbar_label,col_lim=col_lim,**kwargs)
-            else: Experiments.plot_HM(bin_df,title=tag,axes=ax[r,c],savedir=savedir,cbar_label=cbar_label,col_lim=col_lim,**kwargs)
+            else: Experiments.plot_HM(bin_df,title=tag,axes=ax,savedir=savedir,cbar_label=cbar_label,col_lim=col_lim,**kwargs)
             # Adjust the axes
             c += 1
             if c==ncol: c = 0; r+=1

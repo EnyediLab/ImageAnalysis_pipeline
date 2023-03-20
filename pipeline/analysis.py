@@ -3,7 +3,6 @@ from os import sep
 from os.path import join,exists
 import numpy as np
 import pandas as pd
-import scipy.stats as stats
 
 
 class Analysis(Exp_Indiv):
@@ -14,10 +13,10 @@ class Analysis(Exp_Indiv):
         self.pixSize = self.exp_prop['metadata']['pixel_microns']
         
         # Convert frames to minutes
-        interval = self.exp_prop['metadata']['interval_sec']
-        self.ts = [0.0]+list(np.round(a=np.linspace(interval,interval*(self.frames-1),self.frames-1)/60,decimals=2))
+        self.interval = self.exp_prop['metadata']['interval_sec']
+        self.ts = [0.0]+list(np.round(a=np.linspace(self.interval,self.interval*(self.frames-1),self.frames-1)/60,decimals=2))
 
-    def extract_channelData(self,imgFold,maskFold,stim_time,start_baseline=0,posCont_time=None,channel_seg=None,df_ow=False): # [ ]: Added column 'time' to df with frames as time
+    def extract_channelData(self,imgFold,maskFold,stim_time=None,start_baseline=0,posCont_time=None,channel_seg=None,df_ow=False): #TODO: batch it
         """
         Function that will extract the mean values of each masks on all the channels at every frames.
         Output is a dataframe.
@@ -26,37 +25,31 @@ class Analysis(Exp_Indiv):
             # Log
             print(f"---> Extracting channel data with {maskFold}")
 
-            # Load stack
-            img_stack = Analysis.load_stack(imgFold_path=join(sep,self.exp_path+sep,imgFold))
-            
-            # Load mask(s)
-            if channel_seg:
-                chan_seg = channel_seg
-            else:
-                chan_seg = self.channel_seg
+            # # Load stack
+            # img_stack = Analysis.load_stack(imgFold_path=join(sep,self.exp_path+sep,imgFold))
 
             if maskFold == 'Masks_Compartment':
                 # Load mask stack
-                masks = []
-                masks.append(Analysis.load_mask(maskFold_path=join(sep,self.exp_path+sep,maskFold),channel_seg=chan_seg,mask_shape='mb'))
-                masks.append(Analysis.load_mask(maskFold_path=join(sep,self.exp_path+sep,maskFold),channel_seg=chan_seg,mask_shape='cyto'))
-                masks.append(Analysis.load_mask(maskFold_path=join(sep,self.exp_path+sep,maskFold),channel_seg=chan_seg,mask_shape='full'))
-                mask_name = ['mb','cyto','full']
+                masks = [{'maskFold_path':join(sep,self.exp_path+sep,maskFold),'channel_seg':chan,'mask_shape':shape} for chan in self.exp_prop['channel_seg']['Masks_Compartment'] for shape in ['_mb','_cyto','_full']]
+                # masks.append(Analysis.load_mask(maskFold_path=join(sep,self.exp_path+sep,maskFold),channel_seg=chan_seg,mask_shape='mb'))
+                # masks.append(Analysis.load_mask(maskFold_path=join(sep,self.exp_path+sep,maskFold),channel_seg=chan_seg,mask_shape='cyto'))
+                # masks.append(Analysis.load_mask(maskFold_path=join(sep,self.exp_path+sep,maskFold),channel_seg=chan_seg,mask_shape='full'))
+                mask_name = [f'{chan}{shape}' for chan in self.channel_list for shape in ['_mb','_cyto','_full']]
             elif maskFold == 'Masks_Class':
                 # Load mask stack
                 maskFold_path = join(sep,self.exp_path+sep,self.exp_prop['masks_process']['classification']['folder'])
-                masks = [Analysis.load_mask(maskFold_path=maskFold_path,channel_seg=self.exp_prop['channel_seg']['Masks_Class'][0])]
-                mask_name = ['']
+                masks = [{'maskFold_path':maskFold_path,'channel_seg':self.exp_prop['channel_seg']['Masks_Class']}]
+                # masks = [Analysis.load_mask(maskFold_path=maskFold_path,channel_seg=self.exp_prop['channel_seg']['Masks_Class'][0])]
+                mask_name = [chan for chan in self.channel_list]
                 pos_lst = self.exp_prop['masks_process']['classification']['pos']
                 neg_lst = self.exp_prop['masks_process']['classification']['neg']
             else:
-                # Load mask stack
-                masks = [Analysis.load_mask(maskFold_path=join(sep,self.exp_path+sep,maskFold),channel_seg=chan_seg)]
-                mask_name = ['']
-            
+                # Load all chan mask stack
+                masks = [{'maskFold_path':join(sep,self.exp_path+sep,maskFold),'channel_seg':chan} for chan in self.exp_prop['channel_seg'][maskFold]]
+                mask_name = [chan for chan in self.channel_list]
+                
             # Create df to store analyses of the cell
-            chan_keys = [f"{chan}{'_'+mn}" for mn in mask_name for chan in self.channel_list]
-            keys = ['Cell','Frames','time','tag','exp']+chan_keys
+            keys = ['Cell','Frames','time','tag','exp']+mask_name
             if maskFold == 'Masks_Class': keys +=['cell_class','pos_cell']
                 
             dict_analysis = {k:[] for k in keys}
@@ -66,40 +59,83 @@ class Analysis(Exp_Indiv):
             exp_name = '_'.join([self.tag,split_path[0],split_path[-1]])
 
             # Get channel data
-            for obj in list(np.unique(masks[0]))[1:]:
-                if self.frames==1:
-                    dict_analysis['Cell'].append(f"{exp_name}_cell{obj}")
-                    dict_analysis['tag'].append(self.tag)
-                    dict_analysis['exp'].append(exp_name)
-                    dict_analysis['Frames'].append(1)
-                    dict_analysis['time'].append(0)
-                    if maskFold == 'Masks_Class':
-                        dict_analysis['cell_class'].append(f"if cell is {self.exp_prop['channel_seg']['Masks_Class'][1]}")
-                        if obj in pos_lst:
-                            dict_analysis['pos_cell'].append(1)
-                        elif obj in neg_lst:
-                            dict_analysis['pos_cell'].append(0)
-                    for i,m in enumerate(masks):
-                        for c,chan in enumerate(self.channel_list):
-                            if self.chan_numb==1: dict_analysis[f"{chan}_{mask_name[i]}"].append(np.nanmean(a=img_stack,where=m==obj))
-                            else: dict_analysis[f"{chan}_{mask_name[i]}"].append(np.nanmean(a=img_stack[...,c],where=m==obj))
-                else:
-                    for f,t in enumerate(self.ts):
-                        dict_analysis['Frames'].append(f+1)
-                        dict_analysis['time'].append(t)
+            for m in masks:
+                # Load mask
+                mask = Analysis.load_mask(**m)
+                for obj in list(np.unique(mask))[1:]:
+                    if self.frames==1:
                         dict_analysis['Cell'].append(f"{exp_name}_cell{obj}")
                         dict_analysis['tag'].append(self.tag)
                         dict_analysis['exp'].append(exp_name)
+                        dict_analysis['Frames'].append(1)
+                        dict_analysis['time'].append(0)
                         if maskFold == 'Masks_Class':
                             dict_analysis['cell_class'].append(f"if cell is {self.exp_prop['channel_seg']['Masks_Class'][1]}")
                             if obj in pos_lst:
                                 dict_analysis['pos_cell'].append(1)
                             elif obj in neg_lst:
                                 dict_analysis['pos_cell'].append(0)
-                        for i,m in enumerate(masks):
-                            for c,chan in enumerate(self.channel_list):
-                                if self.chan_numb==1: dict_analysis[f"{chan}_{mask_name[i]}"].append(np.nanmean(a=img_stack[f,...],where=m[f,...]==obj))
-                                else: dict_analysis[f"{chan}_{mask_name[i]}"].append(np.nanmean(a=img_stack[f,...,c],where=m[f,...]==obj))
+                        for chan in self.channel_list:
+                            # Load img
+                            img = Analysis.load_stack(imgFold_path=join(sep,self.exp_path+sep,imgFold),channel_list=chan)
+                            for name in mask_name:
+                                if chan in name:
+                                    dict_analysis[name].append(np.nanmean(a=img,where=mask==obj))
+                    else:
+                        for f,t in enumerate(self.ts):
+                            dict_analysis['Cell'].append(f"{exp_name}_cell{obj}")
+                            dict_analysis['tag'].append(self.tag)
+                            dict_analysis['exp'].append(exp_name)
+                            dict_analysis['Frames'].append(f)
+                            dict_analysis['time'].append(t)
+                            if maskFold == 'Masks_Class':
+                                dict_analysis['cell_class'].append(f"if cell is {self.exp_prop['channel_seg']['Masks_Class'][1]}")
+                                if obj in pos_lst:
+                                    dict_analysis['pos_cell'].append(1)
+                                elif obj in neg_lst:
+                                    dict_analysis['pos_cell'].append(0)
+                            for chan in self.channel_list:
+                                # Load img
+                                img = Analysis.load_stack(imgFold_path=join(sep,self.exp_path+sep,imgFold),channel_list=chan,input_range=[f])
+                                for name in mask_name:
+                                    if chan in name:
+                                        dict_analysis[name].append(np.nanmean(a=img,where=mask[f,...]==obj))
+            
+            
+            # for obj in list(np.unique(masks[0]))[1:]:
+            #     if self.frames==1:
+            #         dict_analysis['Cell'].append(f"{exp_name}_cell{obj}")
+            #         dict_analysis['tag'].append(self.tag)
+            #         dict_analysis['exp'].append(exp_name)
+            #         dict_analysis['Frames'].append(1)
+            #         dict_analysis['time'].append(0)
+            #         if maskFold == 'Masks_Class':
+            #             dict_analysis['cell_class'].append(f"if cell is {self.exp_prop['channel_seg']['Masks_Class'][1]}")
+            #             if obj in pos_lst:
+            #                 dict_analysis['pos_cell'].append(1)
+            #             elif obj in neg_lst:
+            #                 dict_analysis['pos_cell'].append(0)
+            #         for i,m in enumerate(masks):
+            #             for c,chan in enumerate(self.channel_list):
+            #                 if self.chan_numb==1: dict_analysis[f"{chan}{mask_name[i]}"].append(np.nanmean(a=img_stack,where=m==obj))
+            #                 else: dict_analysis[f"{chan}{mask_name[i]}"].append(np.nanmean(a=img_stack[...,c],where=m==obj))
+            #     else:
+            #         for f,t in enumerate(self.ts):
+            #             dict_analysis['Frames'].append(f+1)
+            #             dict_analysis['time'].append(t)
+            #             dict_analysis['Cell'].append(f"{exp_name}_cell{obj}")
+            #             dict_analysis['tag'].append(self.tag)
+            #             dict_analysis['exp'].append(exp_name)
+            #             if maskFold == 'Masks_Class':
+            #                 dict_analysis['cell_class'].append(f"if cell is {self.exp_prop['channel_seg']['Masks_Class'][1]}")
+            #                 if obj in pos_lst:
+            #                     dict_analysis['pos_cell'].append(1)
+            #                 elif obj in neg_lst:
+            #                     dict_analysis['pos_cell'].append(0)
+            #             for i,m in enumerate(masks):
+            #                 for c,chan in enumerate(self.channel_list):
+            #                     if self.chan_numb==1: dict_analysis[f"{chan}{mask_name[i]}"].append(np.nanmean(a=img_stack[f,...],where=m[f,...]==obj))
+            #                     else: dict_analysis[f"{chan}{mask_name[i]}"].append(np.nanmean(a=img_stack[f,...,c],where=m[f,...]==obj))
             
             # Convert to df
             if hasattr(self,'df_analysis'): # It should only overwrite common columns
@@ -108,7 +144,7 @@ class Analysis(Exp_Indiv):
                 self.df_analysis = pd.DataFrame.from_dict(dict_analysis)
             
             # Transform df
-            self.df_analysis = Analysis.transfo_df(df_input=self.df_analysis,channel_list=chan_keys,
+            self.df_analysis = Analysis.transfo_df(df_input=self.df_analysis,channel_list=mask_name,
                                                    stim_time=stim_time,start_baseline=start_baseline,posCont_time=posCont_time)
 
             # Update self.exp_prop and save df
@@ -159,7 +195,7 @@ class Analysis(Exp_Indiv):
             elif hasattr(self, 'df_analysis') and 'Cent.X' in self.df_analysis: # If just want to overwrite columns
                 self.df_analysis.update(df)
             else:
-                self.df_analysis = pd.merge(self.df_analysis,df,on=['Cell','Frames'])
+                self.df_analysis = pd.merge(self.df_analysis,df,on=['Cell','Frames','time'])
         
             # Update self.exp_prop and save df
             self.exp_prop['df_analysis'] = self.df_analysis
@@ -172,15 +208,17 @@ class Analysis(Exp_Indiv):
             # Load df
             self.df_analysis = pd.read_csv(join(sep,self.exp_path+sep,'df_analysis.csv'))
 
-    def cell_distance(self,imgFold,maskLabel='wound',df_ow=False):
+    def cell_distance(self,imgFold,maskLabel='wound',df_ow=False,ref_mask_ow=False): 
         # Check maskLabel and centroids
         if type(maskLabel)==str:
-            maskLabel = list(maskLabel)
+            maskLabel = [maskLabel]
         if type(maskLabel)!=list:
             raise TypeError(f"Maskname cannot be of type {type(maskLabel)}. Only string or list of strings are accepted")
         if not hasattr(self, 'df_analysis') or 'Cent.X' not in self.df_analysis:
             raise AttributeError(f"Centroids are missing for {self.exp_path}. Please run 'extract_centroids()' first")
         
+        if ref_mask_ow: df_ow = True
+
         # Run analysis
         if 'cell_distance' not in self.exp_prop['fct_inputs'] or self.exp_prop['fct_inputs']['cell_distance']['maskLabel']!=maskLabel or df_ow:
             # Log
@@ -189,7 +227,7 @@ class Analysis(Exp_Indiv):
             # Convert mask to dmap
             for maskname in maskLabel:
                 # Load dmap mask
-                mask_ref = Analysis.apply_dmap(mask_stack=Analysis.ref_mask(imgFold_path=join(sep,self.exp_path+sep,imgFold),maskLabel=maskname,ref_mask_ow=df_ow),
+                mask_ref = Analysis.apply_dmap(mask_stack=Analysis.ref_mask(imgFold_path=join(sep,self.exp_path+sep,imgFold),maskLabel=maskname,ref_mask_ow=ref_mask_ow),
                                                 frames=self.frames)
                 
                 # Extract dmap
@@ -198,7 +236,7 @@ class Analysis(Exp_Indiv):
                     if self.frames == 1:
                         dt_im = mask_ref.copy()
                     else:
-                        fr = self.df_analysis['Frames'].iloc[ind]
+                        fr = self.df_analysis['Frames'].iloc[ind]-1
                         dt_im = mask_ref[fr,...].copy()
                     cX = self.df_analysis['Cent.X'].iloc[ind]
                     cY = self.df_analysis['Cent.Y'].iloc[ind]
@@ -220,7 +258,7 @@ class Analysis(Exp_Indiv):
 
     def pixel_distance(self,imgFold,maskFold,channel_seg=None,maskLabel='wound',pix_ana_ow=False,ref_mask_ow=False): 
         
-        if 'pixel_distance' not in self.exp_prop['fct_inputs'] or pix_ana_ow:
+        if 'pixel_distance' not in self.exp_prop['fct_inputs'] or pix_ana_ow or not exists(join(sep,self.exp_path+sep,'df_pixel.csv')):
             # Load dmap ref_mask and mask
             mask_ref = Analysis.apply_dmap(mask_stack=Analysis.ref_mask(imgFold_path=join(sep,self.exp_path+sep,imgFold),maskLabel=maskLabel,ref_mask_ow=ref_mask_ow),
                                                     frames=self.frames)      
