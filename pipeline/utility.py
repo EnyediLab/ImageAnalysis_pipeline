@@ -125,47 +125,49 @@ class Utility():
             # If imseq exists just load stack. Else re-/create imseq
             if exists(join(sep,exp_path+sep,'REMOVED_EXP.txt')):
                     print(f"-> Exp.: {exp_path} has been removed\n")
-            else:
-                if any(scandir(im_folder)) and not imseq_ow:
-                    # Log
-                    print(f"-> Image sequence already exists for exp.: {exp_path}")
-                    # Update exp_dict
-                    if not exists(join(sep,exp_path+sep,'exp_properties.pickle')):
-                        # If old folder without exp_properties, then add it
-                        Utility.save_exp_prop(exp_path=exp_path,exp_prop=temp_exp_dict[exp_path])
-                    else: exp_dict[exp_path] = Utility.open_exp_prop(exp_path=exp_path)
-                else:
-                    # Log
-                    print(f"-> Image sequence is being created for exp.: {exp_path}")
+                    continue
+            
+            if any(scandir(im_folder)) and not imseq_ow:
+                # Log
+                print(f"-> Image sequence already exists for exp.: {exp_path}")
+                # Update exp_dict
+                if not exists(join(sep,exp_path+sep,'exp_properties.pickle')):
+                    # If old folder without exp_properties, then add it
+                    Utility.save_exp_prop(exp_path=exp_path,exp_prop=temp_exp_dict[exp_path])
+                else: exp_dict[exp_path] = Utility.open_exp_prop(exp_path=exp_path)
+                continue
+            
+            # Log
+            print(f"-> Image sequence is being created for exp.: {exp_path}")
 
-                    # Remove all files from dir if ow, to avoid clash with older file version
-                    if imseq_ow:
-                        for files in sorted(listdir(im_folder)):
-                            remove(join(sep,im_folder+sep,files))
-                    
-                    # Load exp_para
-                    exp_prop = temp_exp_dict[exp_path]
-                    exp_para = exp_prop['metadata']
-                    exp_prop['status'] = 'active'
-                    
-                    # Create stack and save image sequence                   
-                    for chan in channel_list:
-                        for frame in range(exp_para['t']):
-                            # Build image names
-                            frame_name = '_f%04d'%(frame+1)
-                            for z_slice in range(exp_para['z']):
-                                # Build z name
-                                z_name = '_z%04d'%(z_slice+1)
-                                # Get frame
-                                if exp_para['z']>1: temp_img = nd_obj.get_frame_2D(c=chan_lst.index(chan),t=frame,z=z_slice,x=exp_para['x'],y=exp_para['y'],v=exp_para['v_idx']-1)
-                                else: temp_img = nd_obj.get_frame_2D(c=chan_lst.index(chan),t=frame,x=exp_para['x'],y=exp_para['y'],v=exp_para['v_idx']-1)
-                                # Save
-                                imwrite(join(sep,im_folder+sep,chan+frame_name+z_name+".tif"),temp_img.astype(np.uint16))
-                
-                    # Update exp_dict
-                    exp_prop['fct_inputs']['create_imseq'] = {'img_path':img_path,'imseq_ow':imseq_ow,'channel_list':channel_list,'file_type':file_type,'true_channel_list':true_channel_list,}
-                    exp_dict[exp_path] = exp_prop
-                    Utility.save_exp_prop(exp_path=exp_path,exp_prop=exp_prop)
+            # Remove all files from dir if ow, to avoid clash with older file version
+            if imseq_ow:
+                for files in sorted(listdir(im_folder)):
+                    remove(join(sep,im_folder+sep,files))
+            
+            # Load exp_para
+            exp_prop = temp_exp_dict[exp_path]
+            exp_para = exp_prop['metadata']
+            exp_prop['status'] = 'active'
+            
+            # Create stack and save image sequence                   
+            for chan in channel_list:
+                for frame in range(exp_para['t']):
+                    # Build image names
+                    frame_name = '_f%04d'%(frame+1)
+                    for z_slice in range(exp_para['z']):
+                        # Build z name
+                        z_name = '_z%04d'%(z_slice+1)
+                        # Get frame
+                        if exp_para['z']>1: temp_img = nd_obj.get_frame_2D(c=chan_lst.index(chan),t=frame,z=z_slice,x=exp_para['x'],y=exp_para['y'],v=exp_para['v_idx']-1)
+                        else: temp_img = nd_obj.get_frame_2D(c=chan_lst.index(chan),t=frame,x=exp_para['x'],y=exp_para['y'],v=exp_para['v_idx']-1)
+                        # Save
+                        imwrite(join(sep,im_folder+sep,chan+frame_name+z_name+".tif"),temp_img.astype(np.uint16))
+        
+            # Update exp_dict
+            exp_prop['fct_inputs']['create_imseq'] = {'img_path':img_path,'imseq_ow':imseq_ow,'channel_list':channel_list,'file_type':file_type,'true_channel_list':true_channel_list,}
+            exp_dict[exp_path] = exp_prop
+            Utility.save_exp_prop(exp_path=exp_path,exp_prop=exp_prop)
         return exp_dict
 
     @staticmethod
@@ -509,7 +511,7 @@ class Utility():
                 f_lst = []
                 for im in sorted(listdir(imgFold_path)):
                     # To be able to load either _f3digit.tif or _f4digit.tif
-                    ndigit = len(im.split('_')[1][1:].split('.')[0])
+                    ndigit = len(im.split('_')[-1].split('.')[0][1:])
                     if im.startswith(chan) and im.__contains__(f'_f%0{ndigit}d'%(frame+1)):
                         f_lst.append(imread(join(sep,imgFold_path+sep,im)))
                 chan_list.append(f_lst)
@@ -552,7 +554,7 @@ class Utility():
         return batches
     
     @staticmethod
-    def load_mask(maskFold_path,channel_seg,mask_shape=None,z_slice=None,input_range=None):
+    def load_mask(maskFold_path,channel_seg,mask_shape=None,input_range=None,do_log=True):
         if not any(channel_seg in file for file in listdir(maskFold_path)):
             raise AttributeError(f'No masks was found for the selected segmented channel: {channel_seg}')
         
@@ -560,52 +562,35 @@ class Utility():
         exp_path = sep.join(maskFold_path.split(sep)[:-1])
         exp_prop = Utility.open_exp_prop(exp_path=exp_path)
         exp_para = exp_prop['metadata']
-        if z_slice: exp_para['z'] = z_slice
 
         if input_range:
+            if not isinstance(input_range,list):
+                raise TypeError("input range must be a list")
             frame_range = input_range
         else:
-            frame_range = range(exp_para['t'])
+            frame_range = list(range(exp_para['t']))
 
         # Load masks
         if mask_shape:
             if type(mask_shape)!=str:
-                raise TypeError(f"Variable mask_shape as to be string")
-            # Log
-            print(f"---> Loading {mask_shape} masks from {maskFold_path}")
+                raise TypeError(f"mask_shape must be a string")
 
-            # load mask files
-            if exp_para['z']>1 and exp_para['t']>1:
-                exp_list = []
-                for f in frame_range:
-                    z_lst = []
-                    for z in range(exp_para['z']):
-                        for im in sorted(listdir(maskFold_path)):
-                            # To be able to load either _f3digit.tif or _f4digit.tif
-                            ndigit = len(im.split('_')[1][1:].split('.')[0])
-                            if im.__contains__(f'mask_%s_%s_f%0{ndigit}d_z%0{ndigit}d'%(channel_seg,mask_shape,f+1,z+1)):
-                                z_lst.append(imread(join(sep,maskFold_path+sep,im)))
-                    exp_list.append(z_lst)
-            else:
-                exp_list = [imread(join(sep,maskFold_path+sep,im)) for im in sorted(listdir(maskFold_path)) if im.startswith(f'mask_{channel_seg}_{mask_shape}')]
-        else:
-            # Log
-            print(f"---> Loading masks from '{maskFold_path}'")
+        if do_log:
+            if mask_shape: print(f"---> Loading frames {frame_range} of {mask_shape} masks from {maskFold_path}")
+            else: print(f"---> Loading frames {frame_range} of masks from '{maskFold_path}'")
 
-            # load mask files
-            if exp_para['z']>1 and exp_para['t']>1:
-                exp_list = []
-                for f in frame_range:
-                    z_lst = []
-                    for z in range(exp_para['z']):
-                        for im in sorted(listdir(maskFold_path)):
-                            # To be able to load either _f3digit.tif or _f4digit.tif
-                            ndigit = len(im.split('_')[1][1:].split('.')[0])
-                            if im.__contains__(f'mask_%s_f%0{ndigit}d_z%0{ndigit}d'%(channel_seg,f+1,z+1)):
-                                z_lst.append(imread(join(sep,maskFold_path+sep,im)))
-                    exp_list.append(z_lst)
-            else:
-                exp_list = [imread(join(sep,maskFold_path+sep,im)) for im in sorted(listdir(maskFold_path)) if im.startswith(f'mask_{channel_seg}')]
+        # load mask files
+        exp_list = []
+        for f in frame_range:
+            for im in sorted(listdir(maskFold_path)):
+                # To be able to load either _f3digit.tif or _f4digit.tif
+                ndigit = len(im.split('_')[-1].split('.')[0][1:])
+                if mask_shape:
+                    if im.__contains__(f'mask_%s_%s_f%0{ndigit}d'%(channel_seg,mask_shape,f+1)):
+                        exp_list.append(imread(join(sep,maskFold_path+sep,im)))
+                else:
+                    if im.__contains__(f'mask_%s_f%0{ndigit}d'%(channel_seg,f+1)):
+                        exp_list.append(imread(join(sep,maskFold_path+sep,im)))
         return np.squeeze(np.stack(exp_list))
     
     @staticmethod
@@ -856,8 +841,8 @@ class Utility():
             mkdir(mask_ref_path)
 
         if any(scandir(mask_ref_path)) and not ref_mask_ow:
-            if exp_para['z']>1: mask_ref = Utility.load_mask(maskFold_path=mask_ref_path,channel_seg=maskLabel,z_slice=1)
-            else: mask_ref = Utility.load_mask(maskFold_path=mask_ref_path,channel_seg=maskLabel)
+            mask_ref = Utility.load_mask(maskFold_path=mask_ref_path,channel_seg=maskLabel,do_log=False)
+            
             print(f"-> Loading reference {'Masks_'+maskLabel} masks from Exp. {exp_path}")
         else:
             # Get get masks for dmap
@@ -934,6 +919,63 @@ class Utility():
                             dict_analysis['Cent.Y'].append(round(np.nanmean(y)))
                             dict_analysis['Cent.X'].append(round(np.nanmean(x)))
         return pd.DataFrame.from_dict(dict_analysis)
+    # def centroids(mask_stack,frames_len,z_slice,time=None,exp_name=None): 
+        
+    #     # Create dict to store analyses of the cell
+    #     if z_slice==1: keys = ['Cell','Frames','time','Cent.X','Cent.Y','Mask_ID']
+    #     else: keys = ['Cell','Frames','time','Cent.X','Cent.Y','Cent.Z','Mask_ID']
+    #     dict_analysis = {k:[] for k in keys}
+        
+    #     # Add time?
+    #     if time: frames = time
+    #     else: frames = range(frames_len)
+
+    #     # Get centroids                                         
+    #     for obj in list(np.unique(mask_stack))[1:]:
+    #         if exp_name: cell_name = f"{exp_name}_cell{obj}"
+    #         else: cell_name = f"unknownexp_cell{obj}"
+            
+    #         if z_slice==1:
+    #             if frames_len==1:
+    #                 dict_analysis['Cell'].append(cell_name)
+    #                 dict_analysis['Frames'].append(1)
+    #                 dict_analysis['time'].append(0)
+    #                 y,x = np.where(mask_stack==obj)
+    #                 dict_analysis['Mask_ID'].append(obj)
+    #                 dict_analysis['Cent.Y'].append(round(np.nanmean(y)))
+    #                 dict_analysis['Cent.X'].append(round(np.nanmean(x)))
+    #             else:
+    #                 for f,t in enumerate(frames):
+    #                     y,x = np.where(mask_stack[f,...]==obj)
+    #                     if y.size > 0: 
+    #                         dict_analysis['Cell'].append(cell_name)
+    #                         dict_analysis['Frames'].append(f+1)
+    #                         dict_analysis['time'].append(t)
+    #                         dict_analysis['Mask_ID'].append(obj)
+    #                         dict_analysis['Cent.Y'].append(round(np.nanmean(y)))
+    #                         dict_analysis['Cent.X'].append(round(np.nanmean(x)))
+    #         else:
+    #             if frames_len==1:
+    #                 z,y,x = np.where(mask_stack==obj)
+    #                 dict_analysis['Cell'].append(cell_name)
+    #                 dict_analysis['Frames'].append(1)
+    #                 dict_analysis['time'].append(0)
+    #                 dict_analysis['Mask_ID'].append(obj)
+    #                 dict_analysis['Cent.Z'].append(round(np.nanmean(z)))
+    #                 dict_analysis['Cent.Y'].append(round(np.nanmean(y)))
+    #                 dict_analysis['Cent.X'].append(round(np.nanmean(x)))
+    #             else:
+    #                 for f,t in enumerate(frames):
+    #                     z,y,x = np.where(mask_stack[f,...]==obj)
+    #                     if y.size > 0:
+    #                         dict_analysis['Cell'].append(cell_name)
+    #                         dict_analysis['Frames'].append(f+1)
+    #                         dict_analysis['time'].append(t)
+    #                         dict_analysis['Mask_ID'].append(obj)
+    #                         dict_analysis['Cent.Z'].append(round(np.nanmean(z)))
+    #                         dict_analysis['Cent.Y'].append(round(np.nanmean(y)))
+    #                         dict_analysis['Cent.X'].append(round(np.nanmean(x)))
+    #     return pd.DataFrame.from_dict(dict_analysis)
 
     @staticmethod
     def apply_dmap(mask_stack,frames):

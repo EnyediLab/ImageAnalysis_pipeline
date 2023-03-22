@@ -291,10 +291,19 @@ class Experiments(Utility):
             # Update exp_dict
             self.exp_dict[path] = self.exps[exp_lst.index(path)].exp_prop
 
-    def exp_analysis(self,imgFold,maskFold,channel_seg=None,exp_path=None,df_ow=False,do_cell_dist=False,maskLabel='wound',stim_time=None,ref_mask_ow=False): #BUG: add basal and thyme
+    def exp_analysis(self,imgFold,maskFold,channel_seg=None,exp_path=None,df_ow=False,do_cell_dist=False,maskLabel='wound',ref_mask_ow=False,**kwargs): 
         # Get channel and path
         chan_seg, exp_folder_path = self.exp_get_chanNpath(channel_seg=channel_seg,exp_path=exp_path)
         
+        # Unpack kwargs
+        d_Ana = {'interval':None,'tag':None} 
+        d_ExData = {'stim_time':None,'start_baseline':0,'posCont_time':None} #TODO: extract stim time from exp name
+        for k,v in kwargs.items():
+            if k in d_Ana:
+                d_Ana[k] = v
+            elif k in d_ExData:
+                d_ExData[k] = v
+
         # Run analysis
         if not hasattr(self,'exps_analysis'):
             self.exps_analysis = []
@@ -302,8 +311,8 @@ class Experiments(Utility):
             # Extract data
             self.masterdf_analysis = pd.DataFrame()
             for path in exp_folder_path:
-                anal_exp = Analysis(exp_path=path,channel_seg=self.channel_seg)
-                anal_exp.extract_channelData(imgFold=imgFold,maskFold=maskFold,channel_seg=chan_seg,df_ow=df_ow,stim_time=stim_time)
+                anal_exp = Analysis(exp_path=path,channel_seg=self.channel_seg,**d_Ana)
+                anal_exp.extract_channelData(imgFold=imgFold,maskFold=maskFold,channel_seg=chan_seg,df_ow=df_ow,**d_ExData)
                 anal_exp.extract_centroids(maskFold=maskFold,channel_seg=chan_seg,df_ow=df_ow)
                 if do_cell_dist:
                     # Run ref_mask
@@ -319,7 +328,7 @@ class Experiments(Utility):
             self.masterdf_analysis = pd.DataFrame()
             for path in exp_folder_path:
                 if path in exp_lst:
-                    self.exps_analysis[exp_lst.index(path)].extract_channelData(imgFold=imgFold,maskFold=maskFold,channel_seg=chan_seg,df_ow=df_ow, stim_time=stim_time)
+                    self.exps_analysis[exp_lst.index(path)].extract_channelData(imgFold=imgFold,maskFold=maskFold,channel_seg=chan_seg,df_ow=df_ow,**d_ExData)
                     self.exps_analysis[exp_lst.index(path)].extract_centroids(maskFold=maskFold,channel_seg=chan_seg,df_ow=df_ow)
                     if do_cell_dist:
                         self.exps_analysis[exp_lst.index(path)].cell_distance(imgFold=imgFold,df_ow=df_ow,maskLabel=maskLabel)
@@ -327,8 +336,8 @@ class Experiments(Utility):
                     self.exp_dict[path] = self.exps_analysis[exp_lst.index(path)].exp_prop
                     self.masterdf_analysis = pd.concat([self.masterdf_analysis,anal_exp.df_analysis])
                 else:
-                    anal_exp = Analysis(exp_path=path,channel_seg=self.channel_seg)
-                    anal_exp.extract_channelData(imgFold=imgFold,maskFold=maskFold,channel_seg=chan_seg,df_ow=df_ow, stim_time=stim_time)
+                    anal_exp = Analysis(exp_path=path,channel_seg=self.channel_seg,**d_Ana)
+                    anal_exp.extract_channelData(imgFold=imgFold,maskFold=maskFold,channel_seg=chan_seg,df_ow=df_ow,**d_ExData)
                     anal_exp.extract_centroids(maskFold=maskFold,channel_seg=chan_seg,df_ow=df_ow)
                     if do_cell_dist:
                         # Run ref_mask
