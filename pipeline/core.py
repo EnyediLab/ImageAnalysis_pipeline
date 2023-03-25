@@ -334,7 +334,7 @@ class Experiments(Utility):
                         self.exps_analysis[exp_lst.index(path)].cell_distance(imgFold=imgFold,df_ow=df_ow,maskLabel=maskLabel)
                     # Update exp_prop and concat masterdf
                     self.exp_dict[path] = self.exps_analysis[exp_lst.index(path)].exp_prop
-                    self.masterdf_analysis = pd.concat([self.masterdf_analysis,anal_exp.df_analysis])
+                    self.masterdf_analysis = pd.concat([self.masterdf_analysis,self.exps_analysis[exp_lst.index(path)].df_analysis])
                 else:
                     anal_exp = Analysis(exp_path=path,channel_seg=self.channel_seg,**d_Ana)
                     anal_exp.extract_channelData(imgFold=imgFold,maskFold=maskFold,channel_seg=chan_seg,df_ow=df_ow,**d_ExData)

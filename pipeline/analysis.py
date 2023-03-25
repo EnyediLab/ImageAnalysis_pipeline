@@ -68,11 +68,13 @@ class Analysis(Exp_Indiv):
                 masks_lst = list(*d_chan.values())
                 dict_analysis = {k:[] for k in keys}
                 for f,t in enumerate(self.ts):
+                    
                     for m in masks_lst:
                         # Load mask
                         mask = Analysis.load_mask(input_range=[f],do_log=False,**m)
+                        
                         for obj in list(np.unique(mask))[1:]:
-                            dict_analysis['cell'].append(f"{m['channel_seg']}_cell{obj}")
+                            dict_analysis['cell'].append(f"{exp_name}_{m['channel_seg']}_cell{obj}")
                             dict_analysis['mask_chan'].append(m['channel_seg'])
                             dict_analysis['tag'].append(self.tag)
                             dict_analysis['exp'].append(exp_name)
@@ -81,9 +83,9 @@ class Analysis(Exp_Indiv):
                             if maskFold == 'Masks_Class':
                                 dict_analysis['cell_class'].append(f"if cell is {chan_keys[1]}")
                                 if obj in pos_lst:
-                                    dict_analysis['pos_cell'].append(f)
+                                    dict_analysis['pos_cell'].append(1)
                                 elif obj in neg_lst:
-                                    dict_analysis['pos_cell'].append(t)
+                                    dict_analysis['pos_cell'].append(0)
                             for chan in self.channel_list:
                                 # Load img
                                 img = Analysis.load_stack(imgFold_path=join(sep,self.exp_path+sep,imgFold),channel_list=chan,input_range=[f])
@@ -92,13 +94,8 @@ class Analysis(Exp_Indiv):
                                         dict_analysis[name].append(np.nanmean(a=img,where=mask==obj))
                 df = pd.concat([df,pd.DataFrame.from_dict(dict_analysis)])
 
-            # Convert to df
-            if hasattr(self,'df_analysis'): # It should only overwrite common columns
-                self.df_analysis.update(df)
-            else:
-                self.df_analysis = df
             # Transform df
-            self.df_analysis = Analysis.transfo_df(df_input=self.df_analysis,channel_list=mask_keys,
+            self.df_analysis = Analysis.transfo_df(df_input=df,channel_list=mask_keys,
                                                    stim_time=stim_time,start_baseline=start_baseline,posCont_time=posCont_time)
             
             # Update self.exp_prop and save df
@@ -131,7 +128,7 @@ class Analysis(Exp_Indiv):
                 # Load mask variable
                 chan_keys = self.exp_prop['channel_seg']['Masks_Class']
                 maskFold_path = join(sep,self.exp_path+sep,self.exp_prop['masks_process']['classification']['folder'])
-                masks_dict = [{chan_keys[0]:{'maskFold_path':maskFold_path,'do_log':False,'channel_seg':chan_keys}}]
+                masks_dict = [{chan_keys[0]:[{'maskFold_path':maskFold_path,'do_log':False,'channel_seg':chan_keys[0]}]}]
             else:
                 # Load mask variable
                 chan_keys = self.exp_prop['channel_seg'][maskFold]
@@ -142,6 +139,10 @@ class Analysis(Exp_Indiv):
             else: axes_keys = ['y','x','z']
             keys = ['cell','frames','time','mask_chan','mask_ID']+axes_keys
             
+            # Create tag and exp name
+            split_path = self.exp_path.split(sep)[-1].split('_')
+            exp_name = '_'.join([self.tag,split_path[0],split_path[-1]])
+
             # Get centroids                                         
             df = pd.DataFrame()
             for d_chan in masks_dict:
@@ -152,7 +153,7 @@ class Analysis(Exp_Indiv):
                         # Load mask
                         mask = Analysis.load_mask(input_range=[f],**m)
                         for obj in list(np.unique(mask))[1:]:
-                            dict_analysis['cell'].append(f"{m['channel_seg']}_cell{obj}")
+                            dict_analysis['cell'].append(f"{exp_name}_{m['channel_seg']}_cell{obj}")
                             dict_analysis['mask_chan'].append(m['channel_seg'])
                             dict_analysis['frames'].append(f+1)
                             dict_analysis['time'].append(t)
@@ -186,7 +187,7 @@ class Analysis(Exp_Indiv):
             # Load df
             self.df_analysis = pd.read_csv(join(sep,self.exp_path+sep,'df_analysis.csv'))
 
-    def cell_distance(self,imgFold,maskLabel='wound',df_ow=False,ref_mask_ow=False): # TODO: Check id df_analysis exists
+    def cell_distance(self,imgFold,maskLabel='wound',df_ow=False,ref_mask_ow=False): # TODO: Check if df_analysis exists
         # Check maskLabel and centroids
         if type(maskLabel)==str:
             maskLabel = [maskLabel]
@@ -207,7 +208,6 @@ class Analysis(Exp_Indiv):
                 # Load dmap mask
                 mask_ref = Analysis.apply_dmap(mask_stack=Analysis.ref_mask(imgFold_path=join(sep,self.exp_path+sep,imgFold),maskLabel=maskname,ref_mask_ow=ref_mask_ow),
                                                 frames=self.frames)
-                
                 # Extract dmap
                 self.df_analysis[maskname] = 0
                 for ind in range(self.df_analysis.shape[0]):
@@ -234,7 +234,7 @@ class Analysis(Exp_Indiv):
                     ylf,xlf = df.loc[df['frames']==lf,['y','x']].values[0]
                     df[f"{maskname}_dOE"] = np.round(sqrt((xff-xlf)**2+(yff-ylf)**2),decimals=2)
                     df.loc[df['frames']==ff,f"{maskname}_dist"] = 0
-                    for f in sorted(df.frames.unique())[1:]:
+                    for f in sorted(list(df.frames.unique()))[1:]:
                         y1,x1 = df.loc[df['frames']==f-1,['y','x']].values[0]
                         y2,x2 = df.loc[df['frames']==f,['y','x']].values[0]
                         df.loc[df['frames']==f,f"{maskname}_dist"] = np.round(sqrt((x1-x2)**2+(y1-y2)**2))

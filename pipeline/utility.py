@@ -763,6 +763,11 @@ class Utility():
             n_stack = n_stack + temp
             if np.any(n_stack>obj):
                 n_stack[n_stack>obj] = n_stack[n_stack>obj]-obj
+        # Recheck for incomplete track
+        for obj in list(np.unique(n_stack))[1:]:
+            fn = len(np.unique(np.where(n_stack==obj)[0]))
+            if fn!=mask_stack.shape[0]:
+                n_stack[n_stack==obj] = 0
         n_stack = n_stack.astype('uint16') 
         return n_stack
 
@@ -820,7 +825,7 @@ class Utility():
         return mask_dilated
 
     @staticmethod
-    def ref_mask(imgFold_path,maskLabel,ref_mask_ow):
+    def ref_mask(imgFold_path,maskLabel,ref_mask_ow): #TODO if there is bf, use bf for the maskdrawing (except for maybe laser wounds?)
         """
         This function first generate wound mask on input images (it uses the same channel as segmentation).
         Then mask is converted into distance transformed. Finally, using centroids of masks, we determine the
@@ -860,123 +865,7 @@ class Utility():
                     mask_name = f"mask_{maskLabel}_f%04d.tif" % (m + 1)
                     imwrite(join(sep,mask_ref_path+sep,mask_name),mask_ref[m,...].astype(np.uint16))
         return mask_ref
-
-    @staticmethod
-    def centroids(mask_stack,frames_len,z_slice,time=None,exp_name=None): 
-        
-        # Create dict to store analyses of the cell
-        if z_slice==1: keys = ['Cell','Frames','time','Cent.X','Cent.Y','Mask_ID']
-        else: keys = ['Cell','Frames','time','Cent.X','Cent.Y','Cent.Z','Mask_ID']
-        dict_analysis = {k:[] for k in keys}
-        
-        # Add time?
-        if time: frames = time
-        else: frames = range(frames_len)
-
-        # Get centroids                                         
-        for obj in list(np.unique(mask_stack))[1:]:
-            if exp_name: cell_name = f"{exp_name}_cell{obj}"
-            else: cell_name = f"unknownexp_cell{obj}"
-            
-            if z_slice==1:
-                if frames_len==1:
-                    dict_analysis['Cell'].append(cell_name)
-                    dict_analysis['Frames'].append(1)
-                    dict_analysis['time'].append(0)
-                    y,x = np.where(mask_stack==obj)
-                    dict_analysis['Mask_ID'].append(obj)
-                    dict_analysis['Cent.Y'].append(round(np.nanmean(y)))
-                    dict_analysis['Cent.X'].append(round(np.nanmean(x)))
-                else:
-                    for f,t in enumerate(frames):
-                        y,x = np.where(mask_stack[f,...]==obj)
-                        if y.size > 0: 
-                            dict_analysis['Cell'].append(cell_name)
-                            dict_analysis['Frames'].append(f+1)
-                            dict_analysis['time'].append(t)
-                            dict_analysis['Mask_ID'].append(obj)
-                            dict_analysis['Cent.Y'].append(round(np.nanmean(y)))
-                            dict_analysis['Cent.X'].append(round(np.nanmean(x)))
-            else:
-                if frames_len==1:
-                    z,y,x = np.where(mask_stack==obj)
-                    dict_analysis['Cell'].append(cell_name)
-                    dict_analysis['Frames'].append(1)
-                    dict_analysis['time'].append(0)
-                    dict_analysis['Mask_ID'].append(obj)
-                    dict_analysis['Cent.Z'].append(round(np.nanmean(z)))
-                    dict_analysis['Cent.Y'].append(round(np.nanmean(y)))
-                    dict_analysis['Cent.X'].append(round(np.nanmean(x)))
-                else:
-                    for f,t in enumerate(frames):
-                        z,y,x = np.where(mask_stack[f,...]==obj)
-                        if y.size > 0:
-                            dict_analysis['Cell'].append(cell_name)
-                            dict_analysis['Frames'].append(f+1)
-                            dict_analysis['time'].append(t)
-                            dict_analysis['Mask_ID'].append(obj)
-                            dict_analysis['Cent.Z'].append(round(np.nanmean(z)))
-                            dict_analysis['Cent.Y'].append(round(np.nanmean(y)))
-                            dict_analysis['Cent.X'].append(round(np.nanmean(x)))
-        return pd.DataFrame.from_dict(dict_analysis)
-    # def centroids(mask_stack,frames_len,z_slice,time=None,exp_name=None): 
-        
-    #     # Create dict to store analyses of the cell
-    #     if z_slice==1: keys = ['Cell','Frames','time','Cent.X','Cent.Y','Mask_ID']
-    #     else: keys = ['Cell','Frames','time','Cent.X','Cent.Y','Cent.Z','Mask_ID']
-    #     dict_analysis = {k:[] for k in keys}
-        
-    #     # Add time?
-    #     if time: frames = time
-    #     else: frames = range(frames_len)
-
-    #     # Get centroids                                         
-    #     for obj in list(np.unique(mask_stack))[1:]:
-    #         if exp_name: cell_name = f"{exp_name}_cell{obj}"
-    #         else: cell_name = f"unknownexp_cell{obj}"
-            
-    #         if z_slice==1:
-    #             if frames_len==1:
-    #                 dict_analysis['Cell'].append(cell_name)
-    #                 dict_analysis['Frames'].append(1)
-    #                 dict_analysis['time'].append(0)
-    #                 y,x = np.where(mask_stack==obj)
-    #                 dict_analysis['Mask_ID'].append(obj)
-    #                 dict_analysis['Cent.Y'].append(round(np.nanmean(y)))
-    #                 dict_analysis['Cent.X'].append(round(np.nanmean(x)))
-    #             else:
-    #                 for f,t in enumerate(frames):
-    #                     y,x = np.where(mask_stack[f,...]==obj)
-    #                     if y.size > 0: 
-    #                         dict_analysis['Cell'].append(cell_name)
-    #                         dict_analysis['Frames'].append(f+1)
-    #                         dict_analysis['time'].append(t)
-    #                         dict_analysis['Mask_ID'].append(obj)
-    #                         dict_analysis['Cent.Y'].append(round(np.nanmean(y)))
-    #                         dict_analysis['Cent.X'].append(round(np.nanmean(x)))
-    #         else:
-    #             if frames_len==1:
-    #                 z,y,x = np.where(mask_stack==obj)
-    #                 dict_analysis['Cell'].append(cell_name)
-    #                 dict_analysis['Frames'].append(1)
-    #                 dict_analysis['time'].append(0)
-    #                 dict_analysis['Mask_ID'].append(obj)
-    #                 dict_analysis['Cent.Z'].append(round(np.nanmean(z)))
-    #                 dict_analysis['Cent.Y'].append(round(np.nanmean(y)))
-    #                 dict_analysis['Cent.X'].append(round(np.nanmean(x)))
-    #             else:
-    #                 for f,t in enumerate(frames):
-    #                     z,y,x = np.where(mask_stack[f,...]==obj)
-    #                     if y.size > 0:
-    #                         dict_analysis['Cell'].append(cell_name)
-    #                         dict_analysis['Frames'].append(f+1)
-    #                         dict_analysis['time'].append(t)
-    #                         dict_analysis['Mask_ID'].append(obj)
-    #                         dict_analysis['Cent.Z'].append(round(np.nanmean(z)))
-    #                         dict_analysis['Cent.Y'].append(round(np.nanmean(y)))
-    #                         dict_analysis['Cent.X'].append(round(np.nanmean(x)))
-    #     return pd.DataFrame.from_dict(dict_analysis)
-
+    
     @staticmethod
     def apply_dmap(mask_stack,frames):
         if frames==1:
@@ -1041,7 +930,10 @@ class Utility():
         # Apply all possible ratio
         pair_lst = Utility.get_ratio(channel_list)
         for c1,c2 in pair_lst:
-            df_input[f"{c1}/{c2}"] = df_input[c1]/df_input[c2]
+            if c2==0:
+                df_input[f"{c1}/{c2}"] = 0
+            else:
+                df_input[f"{c1}/{c2}"] = df_input[c1]/df_input[c2]
         
         # Add 'condition_label'
         df_input['condition_label'] = 'other'
@@ -1056,27 +948,32 @@ class Utility():
             bi_lst = deltaF_lst+[f'deltaF_{k}' for k in deltaF_lst]
             new_col = [f"deltaF_{k}" for k in deltaF_lst]+[f"{col}_perCondition" for col in bi_lst]
             df_input = df_input.reindex(columns=df_input.columns.to_list()+new_col,fill_value=0)
-            for cell in df_input['Cell'].unique():
-                df = df_input.loc[(df_input['Cell']==cell)]
+            for cell in df_input['cell'].unique():
+                df = df_input.loc[(df_input['cell']==cell)]
                 # Apply all possible deltaF
                 for col_delta in deltaF_lst:
-                    f0 = df.loc[df['condition_label']=='basal',col_delta].mean()
+                    f0 = float(df.loc[df['condition_label']=='basal',col_delta].mean())
                     if posCont_time: 
-                        fmax_val = df.loc[df['condition_label']=='positive_control',col_delta].max()
+                        fmax_val = float(df.loc[df['condition_label']=='positive_control',col_delta].max())
                         perf0 = fmax_val-f0
                     else: perf0 = f0
                     dfperf0 = (df[col_delta]-f0)/perf0
-                    df_input.loc[dfperf0.index,f'deltaF_{col_delta}'] = dfperf0.values
+                    print(cell,df_input.loc[(df_input['cell']==cell),f'deltaF_{col_delta}'].shape,dfperf0.shape)
+                    df_input.loc[(df_input['cell']==cell),f'deltaF_{col_delta}'] = dfperf0.values
                 # Add all condition value
                 for col in bi_lst:
-                    df_input.loc[(df_input['Cell']==cell)&
+                    df_input.loc[(df_input['cell']==cell)&
                                 (df_input['condition_label']=='basal'),
-                                f"{col}_perCondition"] = df_input.loc[(df_input['Cell']==cell)&
+                                f"{col}_perCondition"] = df_input.loc[(df_input['cell']==cell)&
                                                                     (df_input['condition_label']=='basal'),col].mean()
-                    df_input.loc[(df_input['Cell']==cell)&
+                    df_input.loc[(df_input['cell']==cell)&
                                 (df_input['condition_label']=='stimulus'),
-                                f"{col}_perCondition"] = df_input.loc[(df_input['Cell']==cell)&
+                                f"{col}_perCondition"] = df_input.loc[(df_input['cell']==cell)&
                                                                     (df_input['condition_label']=='stimulus'),col].mean()
+                    df_input.loc[(df_input['cell']==cell)&
+                                (df_input['condition_label']=='positive_control'),
+                                f"{col}_perCondition"] = df_input.loc[(df_input['cell']==cell)&
+                                                                    (df_input['condition_label']=='positive_control'),col].mean()
         return df_input
 
 
@@ -1318,7 +1215,7 @@ def mask_warp(m1,m2,ngap):
             resized_mask = np.zeros((m1.shape))
             resized_mask[crop_slice] = mask
 
-            # Replace mask to new center pisotion
+            # Replace mask to new center position
             resized_mask,__ = center_mask(mask=resized_mask,midX=np.round(Xs[i+1]),midY=np.round(Ys[i+1]))
 
             # append the list
@@ -1338,9 +1235,6 @@ def mask_warp(m1,m2,ngap):
 
             # append the list
             masks_list.append(resized_mask)
-
-            
-
     return masks_list
 
 def fill_gaps(stack): # TODO: make this faster

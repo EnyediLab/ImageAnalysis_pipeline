@@ -406,7 +406,6 @@ class Exp_Indiv(Utility):
                 csv_file_name = [x for x in csv_file_name if chan_seg in x][0]
             else:
                 csv_file_name = csv_file_name[0]
-                
             csvpath = join(sep,self.exp_path+sep,csv_file_name)
             data = pd.read_csv(csvpath, encoding= 'unicode_escape', sep=None, engine='python')
             
@@ -444,10 +443,14 @@ class Exp_Indiv(Utility):
             data = data.astype(int)
              
             masks_man = np.zeros((self.frames,self.y_size,self.x_size), dtype=int)                    
-            for __, row in data.iterrows():
+            for __, row in data.iterrows(): #BUG: Check for overlap of disk, not to create 
                 rr, cc = draw.disk((row[y_head],row[x_head]), radius=radius, shape=masks_man[0].shape)
-                masks_man[row[t_head]][rr, cc] = row['TID']
+                if all(masks_man[row[t_head]][rr, cc]!=0): # Check for existing track
+                    try: masks_man[row[t_head]][rr+1, cc+1] = row['TID'] # This could fail if 2 objs are exactly on the same corner poisiton (Highly unlikely!!)
+                    except: masks_man[row[t_head]][rr-1, cc-1] = row['TID']
 
+                else:
+                    masks_man[row[t_head]][rr, cc] = row['TID']
             if morph:
                 masks_man = masks_man.astype('uint16') #change to uint16, otherwise other function later will get messed up
                 masks_man = Exp_Indiv.morph(mask_stack=masks_man, n_mask=n_mask)
