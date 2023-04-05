@@ -18,7 +18,8 @@ from numbers import Number
 from platform import system
 from cellpose.metrics import _intersection_over_union
 from cellpose.utils import stitch3D
-from scipy.stats import mode
+from scipy.stats import mode,iqr
+from scipy import stats
 import matplotlib.pyplot as plt
 import seaborn as sb
 
@@ -926,7 +927,10 @@ class Utility():
         return combi
     
     @staticmethod
-    def transfo_df(df_input,channel_list,stim_time=None,start_baseline=0,posCont_time=None):
+    def transfo_df(df_input,channel_list,stim_time=None,start_baseline=0,posCont_time=None,signal_type='linear'):
+        # Check input
+        if signal_type not in ['linear','ocsillatory']: raise AttributeError(f"signal_type can only be {['linear','ocsillatory']}")
+        
         # Apply all possible ratio
         pair_lst = Utility.get_ratio(channel_list)
         for c1,c2 in pair_lst:
@@ -958,7 +962,6 @@ class Utility():
                         perf0 = fmax_val-f0
                     else: perf0 = f0
                     dfperf0 = (df[col_delta]-f0)/perf0
-                    print(cell,df_input.loc[(df_input['cell']==cell),f'deltaF_{col_delta}'].shape,dfperf0.shape)
                     df_input.loc[(df_input['cell']==cell),f'deltaF_{col_delta}'] = dfperf0.values
                 # Add all condition value
                 for col in bi_lst:
@@ -974,10 +977,68 @@ class Utility():
                                 (df_input['condition_label']=='positive_control'),
                                 f"{col}_perCondition"] = df_input.loc[(df_input['cell']==cell)&
                                                                     (df_input['condition_label']=='positive_control'),col].mean()
-        return df_input
+        return Utility.get_outliers(df_input,bi_lst,signal_type)
 
+    @staticmethod
+    def get_outliers(df,col_lst,signal_type):
+        col_keys = ['z-score','z-outlier','q1','q3','iqr','q1*iqr','q3*iqr','iqr-outlier']
+        new_col = [f"{k}_{col}" for col in col_lst for k in col_keys]
+        
+        # Add all columns
+        for col in col_lst:
+            df.insert(df.columns.get_loc(col)+1,f"z-score_{col}",0)
+            df.insert(df.columns.get_loc(col)+2,f"z-outlier_{col}",0)
+            df.insert(df.columns.get_loc(col)+3,f"q1_{col}",0)
+            df.insert(df.columns.get_loc(col)+4,f"q3_{col}",0)
+            df.insert(df.columns.get_loc(col)+5,f"iqr_{col}",0)
+            df.insert(df.columns.get_loc(col)+6,f"q1*iqr_{col}",0)
+            df.insert(df.columns.get_loc(col)+7,f"q3*iqr_{col}",0)
+            df.insert(df.columns.get_loc(col)+8,f"iqr-outlier_{col}",0)
+        
+        # Compute outliers
+        if signal_type=='linear':
+            for f in df.frames.unique():
+                for col in col_lst:
+                    # compute z-score
+                    df.loc[df.frames==f,f"z-score_{col}"] = np.abs(stats.zscore(df.loc[df.frames==f,col]))
+                    # compute iqr
+                    df.loc[df.frames==f,f"q1_{col}"] = df.loc[df.frames==f,col].quantile(q=.25)
+                    df.loc[df.frames==f,f"q3_{col}"] = df.loc[df.frames==f,col].quantile(q=.75)
+                    df.loc[df.frames==f,f"iqr_{col}"] = iqr(x=df.loc[df.frames==f,col])
+                    df.loc[df.frames==f,f"q1*iqr_{col}"] = df.loc[df.frames==f,f"q1_{col}"]-1.5*df.loc[df.frames==f,f"iqr_{col}"]
+                    df.loc[df.frames==f,f"q3*iqr_{col}"] = df.loc[df.frames==f,f"q3_{col}"]+1.5*df.loc[df.frames==f,f"iqr_{col}"]
+        elif signal_type=='ocsillatory':
+            meddf = df.groupby(['condition_label','cell']).median().reset_index()
+            for cond in df['condition_label'].unique():
+                for col in col_lst:
+                    # Compute z-score
+                    meddf.loc[meddf['condition_label']==cond,f"z-score_{col}"] = np.abs(stats.zscore(meddf.loc[meddf['condition_label']==cond,col]))
+                    # Compute iqr
+                    meddf.loc[meddf['condition_label']==cond,f"q1_{col}"] = meddf.loc[meddf['condition_label']==cond,col].quantile(q=.25)
+                    meddf.loc[meddf['condition_label']==cond,f"q3_{col}"] = meddf.loc[meddf['condition_label']==cond,col].quantile(q=.75)
+                    meddf.loc[meddf['condition_label']==cond,f"iqr_{col}"] = iqr(meddf.loc[meddf['condition_label']==cond,col])
+                    meddf.loc[meddf['condition_label']==cond,f"q1*iqr_{col}"] = meddf.loc[meddf['condition_label']==cond,f"q1_{col}"]-1.5*meddf.loc[meddf['condition_label']==cond,f"iqr_{col}"]
+                    meddf.loc[meddf['condition_label']==cond,f"q3*iqr_{col}"] = meddf.loc[meddf['condition_label']==cond,f"q3_{col}"]+1.5*meddf.loc[meddf['condition_label']==cond,f"iqr_{col}"]
 
+                    meddf = meddf.set_index(['condition_label','cell'])
+                    for ind,row in df.iterrows():
+                        cell = row.cell; cond = row.condition_label
+                        for col in new_col:
+                            row[col] = meddf.loc[(cond,cell),col]
+                        df.loc[ind] = row
 
+        # Label outliers
+        for cell in df.cell.unique():
+            for col in col_lst:
+                # Z-score decision
+                if any(df.loc[df.cell==cell,f"z-score_{col}"]>=3): df.loc[df.cell==cell,f"z-outlier_{col}"] = 1
+                else: df.loc[df.cell==cell,f"z-outlier_{col}"] = 0
+                # iqr decision
+                if any(df.loc[df.cell==cell,col]<df.loc[df.cell==cell,f"q1*iqr_{col}"])|any(df.loc[df.cell==cell,col]>df.loc[df.cell==cell,f"q3*iqr_{col}"]):
+                    df.loc[df.cell==cell,f"iqr-outlier_{col}"] = 1
+                else: df.loc[df.cell==cell,f"iqr-outlier_{col}"] = 0
+        
+        return df
 ##############################
 #### Utility fct
 def draw_rect(img,img_name): # TODO: to be deleted

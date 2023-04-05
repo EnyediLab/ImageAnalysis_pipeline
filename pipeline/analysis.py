@@ -92,7 +92,7 @@ class Analysis(Exp_Indiv):
                                 for name in mask_keys:
                                     if chan in name:
                                         dict_analysis[name].append(np.nanmean(a=img,where=mask==obj))
-                df = pd.concat([df,pd.DataFrame.from_dict(dict_analysis)])
+                df = pd.concat([df,pd.DataFrame.from_dict(dict_analysis)],ignore_index=True)
 
             # Transform df
             self.df_analysis = Analysis.transfo_df(df_input=df,channel_list=mask_keys,
@@ -169,7 +169,7 @@ class Analysis(Exp_Indiv):
                                     dict_analysis["y"].append(round(np.nanmean(y)))
                                     dict_analysis["x"].append(round(np.nanmean(x)))
                                     dict_analysis["z"].append(round(np.nanmean(z)))
-                df = pd.concat([df,pd.DataFrame.from_dict(dict_analysis)])
+                df = pd.concat([df,pd.DataFrame.from_dict(dict_analysis)],ignore_index=True)
             
             # Create attr if it doesn't exist
             if not hasattr(self, 'df_analysis'):
