@@ -296,7 +296,7 @@ class Experiments(Utility):
         chan_seg, exp_folder_path = self.exp_get_chanNpath(channel_seg=channel_seg,exp_path=exp_path)
         
         # Unpack kwargs
-        d_Ana = {'interval':None,'tag':None} 
+        d_Ana = {'interval':None,'tag':None, 'tag_ow':False} 
         d_ExData = {'stim_time':None,'start_baseline':0,'posCont_time':None} #TODO: extract stim time from exp name
         for k,v in kwargs.items():
             if k in d_Ana:

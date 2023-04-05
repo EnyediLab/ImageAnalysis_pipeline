@@ -7,12 +7,14 @@ from math import sqrt
 
 
 class Analysis(Exp_Indiv):
-    def __init__(self, exp_path,channel_seg,interval=None,tag=None):
+    def __init__(self, exp_path,channel_seg,interval=None,tag=None, tag_ow=False):
         super().__init__(exp_path,channel_seg)
-
         if tag: 
             if not isinstance(tag,dict): raise TypeError("tag needs to be a dictionary with 'exp_path' as key and 'tag' as value")
             self.tag = tag[exp_path]
+        elif tag_ow:
+            print('Tags were overwritten')
+            self.tag = exp_path.split(sep)[-2]
         else: self.tag = self.exp_prop['metadata']['tag']
         self.pixSize = self.exp_prop['metadata']['pixel_microns']
         

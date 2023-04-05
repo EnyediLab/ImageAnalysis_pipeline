@@ -51,7 +51,10 @@ class Utility():
         if exp_para['z']*exp_para['t']*exp_para['v']!=exp_para['total_images_per_channel']:
             exp_para['z'] = 1
         ts = np.round(np.diff(nd_obj.timesteps[::exp_para['v']*exp_para['z']]/1000).mean())
-        exp_para['interval_sec'] = int(ts)
+        if np.isnan(ts):# if only single Image, set interval 0
+            exp_para['interval_sec'] = 0
+        else:
+            exp_para['interval_sec'] = int(ts)
         return exp_para
     
     @staticmethod
@@ -75,7 +78,10 @@ class Utility():
         
         ### Add the interval of each frames
         ts = np.round(np.diff(nd_obj.timesteps[::exp_para['v']*exp_para['z']]/1000).mean())
-        exp_para['interval_sec'] = int(ts)
+        if np.isnan(ts): # if only single Image, set interval 0
+            exp_para['interval_sec'] = 0
+        else:
+            exp_para['interval_sec'] = int(ts)
         
         ### Add channel properties
         exp_para['channel_list'] = channel_list
