@@ -13,7 +13,6 @@ import cv2,pickle,itertools
 from skimage import draw
 from psutil import virtual_memory
 from math import ceil
-import mahotas as mh
 from numbers import Number
 from platform import system
 from cellpose.metrics import _intersection_over_union
@@ -876,9 +875,9 @@ class Utility():
     @staticmethod
     def apply_dmap(mask_stack,frames):
         if frames==1:
-            dt_mask = mh.distance(np.logical_not(mask_stack),metric='euclidean')    
+            dt_mask = distance(np.logical_not(mask_stack),metric='euclidean')    
         else:
-            dt_mask = np.stack([mh.distance(np.logical_not(mask_stack[m,...]),metric='euclidean') for m in range(frames)])
+            dt_mask = np.stack([distance(np.logical_not(mask_stack[m,...]),metric='euclidean') for m in range(frames)])
         return dt_mask
 
     @staticmethod
