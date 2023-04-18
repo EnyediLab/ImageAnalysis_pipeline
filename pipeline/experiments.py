@@ -539,7 +539,7 @@ class Exp_Indiv(Utility):
 
         # Setup run
         cpRun = {'batch_size':8,'channels':[0,0],'channel_axis':None,'z_axis':None,
-                'invert':False,'normalize':True,'diameter':30.,'do_3D':False,'anisotropy':2.0,
+                'invert':False,'normalize':True,'diameter':60.,'do_3D':False,'anisotropy':2.0,
                 'net_avg':False,'augment':False,'tile':True,'tile_overlap':0.1,'resample':True,
                 'interp':True,'flow_threshold':0.4,'cellprob_threshold':0.0,'min_size':500,
                 'stitch_threshold':0.0,'rescale':None,'progress':None,'model_loaded':False} # Default kwargs for cellpose run
