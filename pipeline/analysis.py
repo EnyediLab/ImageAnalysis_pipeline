@@ -23,7 +23,7 @@ class Analysis(Exp_Indiv):
         else: self.interval = self.exp_prop['metadata']['interval_sec']
         self.ts = [0.0]+list(np.round(a=np.linspace(self.interval,self.interval*(self.frames-1),self.frames-1)/60,decimals=2))
 
-    def extract_channelData(self,imgFold,maskFold,stim_time=None,start_baseline=0,posCont_time=None,channel_seg=None,df_ow=False): #TODO: batch it
+    def extract_channelData(self,imgFold,maskFold,stim_time=None,start_baseline=0,posCont_time=None,channel_seg=None,df_ow=False,signal_type='linear'): #TODO: batch it
         """
         Function that will extract the mean values of each masks on all the channels at every frames.
         Output is a dataframe.
@@ -98,7 +98,7 @@ class Analysis(Exp_Indiv):
 
             # Transform df
             self.df_analysis = Analysis.transfo_df(df_input=df,channel_list=mask_keys,
-                                                   stim_time=stim_time,start_baseline=start_baseline,posCont_time=posCont_time)
+                                                   stim_time=stim_time,start_baseline=start_baseline,posCont_time=posCont_time,signal_type=signal_type)
             
             # Update self.exp_prop and save df
             self.exp_prop['df_analysis'] = self.df_analysis
