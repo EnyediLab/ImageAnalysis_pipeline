@@ -95,11 +95,9 @@ class Analysis(Exp_Indiv):
                                     if chan in name:
                                         dict_analysis[name].append(np.nanmean(a=img,where=mask==obj))
                 df = pd.concat([df,pd.DataFrame.from_dict(dict_analysis)],ignore_index=True)
-
             # Transform df
-            self.df_analysis = Analysis.transfo_df(df_input=df,channel_list=mask_keys,
+            self.df_analysis = Analysis.transfo_df(df=df,channel_list=mask_keys,
                                                    stim_time=stim_time,start_baseline=start_baseline,posCont_time=posCont_time,signal_type=signal_type)
-            
             # Update self.exp_prop and save df
             self.exp_prop['df_analysis'] = self.df_analysis
             self.exp_prop['fct_inputs']['extract_channelData'] = {'imgFold':imgFold,'maskFold':maskFold,'channel_seg':channel_seg}

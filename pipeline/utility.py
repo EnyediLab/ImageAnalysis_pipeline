@@ -905,15 +905,16 @@ class Utility():
         return bin_df.fillna(0)
 
     @staticmethod
-    def plot_HM(df,title,axes=None,savedir=None,cbar_label=r'$\Delta$F/F$_{min}$',col_lim=[0,2],**kwargs): #[ ] save individual figure
+    def plot_HM(df,title,axes=None,figsize=None,savedir=None,cbar_label=r'$\Delta$F/F$_{min}$',col_lim=[0,2],**kwargs):
         # Get kwargs for sb.heatmap
         plot_args = {'cmap':'jet','yticklabels':10,'xticklabels':5,'cbar_kws':{'label': cbar_label},
                         'vmin':col_lim[0],'vmax':col_lim[1]}
         plot_args.update(kwargs)
         
         # plot
-        fig = plt.figure()
+        fig = plt.figure(figsize=figsize)
         plt.rcParams['pdf.fonttype'] = 42
+        sb.set_style()
         ax = sb.heatmap(df,ax=axes,**plot_args)
         ax.set_title(title)
         ax.set_xlabel('Time (mim)')
@@ -921,6 +922,7 @@ class Utility():
         ax.invert_yaxis()
         
         if savedir:
+            fig = ax.get_figure()
             fig.savefig(join(sep,savedir+sep,f'{title}.pdf'))
         return ax
 
@@ -963,15 +965,15 @@ class Utility():
             new_col = [f"deltaF_{k}" for k in deltaF_lst]+[f"{col}_{pcd}" for col in bi_lst]
             df = df.reindex(columns=df.columns.to_list()+new_col,fill_value=0)
             for c in df['cell'].unique():
-                df = df.loc[(df['cell']==c)]
+                dft = df.loc[(df['cell']==c)]
                 # Apply all possible deltaF
                 for col_delta in deltaF_lst:
-                    f0 = float(df.loc[df[cl]==bl,col_delta].mean())
+                    f0 = float(dft.loc[df[cl]==bl,col_delta].mean())
                     if posCont_time: 
-                        fmax_val = float(df.loc[df[cl]==pc,col_delta].max())
+                        fmax_val = float(dft.loc[df[cl]==pc,col_delta].max())
                         perf0 = fmax_val-f0
                     else: perf0 = f0
-                    dfperf0 = (df[col_delta]-f0)/perf0
+                    dfperf0 = (dft[col_delta]-f0)/perf0
                     df.loc[(df['cell']==c),f'deltaF_{col_delta}'] = dfperf0.values
                 # Add all condition value
                 for col in bi_lst:
@@ -980,16 +982,15 @@ class Utility():
                         df.loc[(df['cell']==c)&(df[cl]==st),f"{col}_{pcd}"] = df.loc[(df['cell']==c)&(df[cl]==st),col].mean()
                         df.loc[(df['cell']==c)&(df[cl]==pc),f"{col}_{pcd}"] = df.loc[(df['cell']==c)&(df[cl]==pc),col].mean()
                     else:
-                        df.loc[(df['cell']==c)&(df[cl]==bl),f"{col}_{pcd}"] = df.loc[(df['cell']==c)&(df[cl]==bl),col].median()
-                        df.loc[(df['cell']==c)&(df[cl]==st),f"{col}_{pcd}"] = df.loc[(df['cell']==c)&(df[cl]==st),col].median()
-                        df.loc[(df['cell']==c)&(df[cl]==pc),f"{col}_{pcd}"] = df.loc[(df['cell']==c)&(df[cl]==pc),col].median()
-        return Utility.get_outliers(df=df,col_lst=channel_list,signal_type=signal_type)
+                        df.loc[(df['cell']==c)&(df[cl]==bl),f"{col}_{pcd}"] = df.loc[(df['cell']==c)&(df[cl]==bl),col].mean()
+                        df.loc[(df['cell']==c)&(df[cl]==st),f"{col}_{pcd}"] = df.loc[(df['cell']==c)&(df[cl]==st),col].mean()
+                        df.loc[(df['cell']==c)&(df[cl]==pc),f"{col}_{pcd}"] = df.loc[(df['cell']==c)&(df[cl]==pc),col].mean()
+        return Utility.get_outliers(df=df.copy(),col_lst=channel_list,signal_type=signal_type)
 
     @staticmethod
     def get_outliers(df,col_lst,signal_type):
         col_keys = ['z-score','z-outlier','q1','q3','iqr','q1*iqr','q3*iqr','iqr-outlier']
         new_col = [f"{k}_{col}" for col in col_lst for k in col_keys]
-        
         # Shortcuts
         cl = 'condition_label'
         fs = 'frames'
@@ -1017,25 +1018,25 @@ class Utility():
                     df.loc[df[fs]==f,f"q1*iqr_{col}"] = df.loc[df[fs]==f,f"q1_{col}"]-1.5*df.loc[df[fs]==f,f"iqr_{col}"]
                     df.loc[df[fs]==f,f"q3*iqr_{col}"] = df.loc[df[fs]==f,f"q3_{col}"]+1.5*df.loc[df[fs]==f,f"iqr_{col}"]
         elif signal_type=='ocsillatory':
-            mdf = df.groupby([cl,'cell']).median().reset_index()
-            for cd in df[cl].unique():
+            meddf = df.groupby(['condition_label','cell']).median().reset_index()
+            for cond in df['condition_label'].unique():
                 for col in col_lst:
                     # Compute z-score
-                    mdf.loc[mdf[cl]==cd,f"z-score_{col}"] = np.abs(stats.zscore(mdf.loc[mdf[cl]==cd,col]))
+                    meddf.loc[meddf['condition_label']==cond,f"z-score_{col}"] = np.abs(stats.zscore(meddf.loc[meddf['condition_label']==cond,col]))
                     # Compute iqr
-                    mdf.loc[mdf[cl]==cd,f"q1_{col}"] = mdf.loc[mdf[cl]==cd,col].quantile(q=.25)
-                    mdf.loc[mdf[cl]==cd,f"q3_{col}"] = mdf.loc[mdf[cl]==cd,col].quantile(q=.75)
-                    mdf.loc[mdf[cl]==cd,f"iqr_{col}"] = iqr(mdf.loc[mdf[cl]==cd,col])
-                    mdf.loc[mdf[cl]==cd,f"q1*iqr_{col}"] = mdf.loc[mdf[cl]==cd,f"q1_{col}"]-1.5*mdf.loc[mdf[cl]==cd,f"iqr_{col}"]
-                    mdf.loc[mdf[cl]==cd,f"q3*iqr_{col}"] = mdf.loc[mdf[cl]==cd,f"q3_{col}"]+1.5*mdf.loc[mdf[cl]==cd,f"iqr_{col}"]
-
-                    mdf = mdf.set_index([cl,'cell'])
-                    for ind,row in df.iterrows():
-                        c = row.cell; cd = row.condition_label
-                        for col in new_col:
-                            row[col] = mdf.loc[(cd,c),col]
-                        df.loc[ind] = row
-
+                    meddf.loc[meddf['condition_label']==cond,f"q1_{col}"] = meddf.loc[meddf['condition_label']==cond,col].quantile(q=.25)
+                    meddf.loc[meddf['condition_label']==cond,f"q3_{col}"] = meddf.loc[meddf['condition_label']==cond,col].quantile(q=.75)
+                    meddf.loc[meddf['condition_label']==cond,f"iqr_{col}"] = iqr(meddf.loc[meddf['condition_label']==cond,col])
+                    meddf.loc[meddf['condition_label']==cond,f"q1*iqr_{col}"] = meddf.loc[meddf['condition_label']==cond,f"q1_{col}"]-1.5*meddf.loc[meddf['condition_label']==cond,f"iqr_{col}"]
+                    meddf.loc[meddf['condition_label']==cond,f"q3*iqr_{col}"] = meddf.loc[meddf['condition_label']==cond,f"q3_{col}"]+1.5*meddf.loc[meddf['condition_label']==cond,f"iqr_{col}"]
+            
+            meddf = meddf.set_index(['condition_label','cell'])
+            for ind,row in df.iterrows():
+                cell = row.cell; cond = row.condition_label
+                for col in new_col:
+                    row[col] = meddf.loc[(cond,cell),col]
+                df.loc[ind] = row
+            
         # Label outliers
         for c in df.cell.unique():
             for col in col_lst:

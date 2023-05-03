@@ -171,7 +171,7 @@ class Exp_Indiv(Utility):
                 self.exp_prop['channel_seg']['Masks_BaxTracked'] = [chan_seg]
             Exp_Indiv.save_exp_prop(exp_path=self.exp_path,exp_prop=self.exp_prop)
 
-    def stitch_masks(self,maskFold='Masks_CP',channel_seg=None,stitch_threshold=0.75,shape_threshold=0.2,stitch_ow=False,n_mask=2):
+    def stitch_masks(self,maskFold='Masks_CP',channel_seg=None,stitch_threshold=0.75,shape_threshold=0.2,stitch_ow=False,n_mask=5,): #TODO: remove log from loading mask
         
         if self.frames==1:
             print('Not a time sequence, triming mask will be ignored')
@@ -443,7 +443,7 @@ class Exp_Indiv(Utility):
             data = data.astype(int)
              
             masks_man = np.zeros((self.frames,self.y_size,self.x_size), dtype=int)                    
-            for __, row in data.iterrows(): #BUG: Check for overlap of disk, not to create 
+            for __, row in data.iterrows():
                 rr, cc = draw.disk((row[y_head],row[x_head]), radius=radius, shape=masks_man[0].shape)
                 if all(masks_man[row[t_head]][rr, cc]!=0): # Check for existing track
                     try: masks_man[row[t_head]][rr+1, cc+1] = row['TID'] # This could fail if 2 objs are exactly on the same corner poisiton (Highly unlikely!!)

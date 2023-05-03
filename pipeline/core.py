@@ -13,6 +13,7 @@ from math import ceil
 # TODO: write all the docstrings
 # TODO: make all the notebook template
 # TODO: implement parallel processing
+# TODO: choose the folder automatically
 class Experiments(Utility):
     def __init__(self,parent_folder,channel_list,channel_seg,file_type='.nd2'): # TODO: enable tif file
         """Class that regroups all experiments, for pre-, processing, analysis and ploting
@@ -144,7 +145,7 @@ class Experiments(Utility):
             exp_folder_path = self.exp_folder_path
         return chan_seg, exp_folder_path
 
-    def exp_cp_seg(self,imgFold='Images',exp_path=None,channel_seg=None,seg_ow=False,nucMarker=None,stitch=None,do_log=True,**kwargs):
+    def exp_cp_seg(self,imgFold=None,exp_path=None,channel_seg=None,seg_ow=False,nucMarker=None,stitch=None,do_log=True,**kwargs):
         """Runs Cellpose. For details see https://cellpose.readthedocs.io/en/latest/index.html. Save Masks into 'Masks_CP'.
 
         Args:
@@ -175,8 +176,11 @@ class Experiments(Utility):
 
             # Run seg  
             for path in exp_folder_path:
-                # Seg
+               # Seg
                 exp = Exp_Indiv(exp_path=path,channel_seg=self.channel_seg)
+                if not imgFold:
+                    if 'im_reg' in exp.exp_prop['fct_inputs']: imgFold = 'Images_Registered'
+                    else: imgFold = 'Images'
                 exp.cellpose_segment(imgFold=imgFold,channel_seg=chan_seg,seg_ow=seg_ow,nucMarker=nucMarker,stitch=stitch,do_log=do_log,**kwargs)
                 
                 # Update list and exp_dict
@@ -189,14 +193,20 @@ class Experiments(Utility):
             for path in exp_folder_path:
                 if path in exp_lst:
                     # Seg
-                    self.exps[exp_lst.index(path)].cellpose_segment(imgFold=imgFold,channel_seg=chan_seg,seg_ow=seg_ow,nucMarker=nucMarker,stitch=stitch,**kwargs)
+                    if not imgFold:
+                        if 'im_reg' in self.exps[exp_lst.index(path)].exp_prop['fct_inputs']: imgFold = 'Images_Registered'
+                        else: imgFold = 'Images'
+                    self.exps[exp_lst.index(path)].cellpose_segment(imgFold=imgFold,channel_seg=chan_seg,seg_ow=seg_ow,nucMarker=nucMarker,stitch=stitch,do_log=do_log,**kwargs)
                     
                     # Update exp_dict
                     self.exp_dict[path] = self.exps[exp_lst.index(path)].exp_prop
                 else:
                     # Create obj and Seg
                     exp = Exp_Indiv(exp_path=path,channel_seg=self.channel_seg)
-                    exp.cellpose_segment(imgFold=imgFold,channel_seg=chan_seg,seg_ow=seg_ow,nucMarker=nucMarker,stitch=stitch,**kwargs)
+                    if not imgFold:
+                        if 'im_reg' in exp.exp_prop['fct_inputs']: imgFold = 'Images_Registered'
+                        else: imgFold = 'Images'
+                    exp.cellpose_segment(imgFold=imgFold,channel_seg=chan_seg,seg_ow=seg_ow,nucMarker=nucMarker,stitch=stitch,do_log=do_log,**kwargs)
 
                     # Update list and exp_dict
                     self.exps.append(exp)
@@ -433,7 +443,7 @@ class Experiments(Utility):
                     self.exps.append(exp)
                     self.exp_dict[path] = exp.exp_prop
 
-    def exp_pixel_distance(self,imgFold,maskFold,exp_path=None,channel_seg=None,maskLabel='wound',do_cond_df=False,pix_ana_ow=False,ref_mask_ow=False,interval=None,man_tag=None): # TODO: modify function to load masterdf if any
+    def exp_pixel_distance(self,imgFold,maskFold,exp_path=None,channel_seg=None,maskLabel='wound',do_cond_df=False,pix_ana_ow=False,ref_mask_ow=False,interval=None,man_tag=None): # [ ]: modify function to load masterdf if any
         # Get channel and path
         chan_seg, exp_folder_path = self.exp_get_chanNpath(channel_seg=channel_seg,exp_path=exp_path)
 
@@ -446,8 +456,9 @@ class Experiments(Utility):
             for path in exp_folder_path:
                 # Seg
                 exp = Analysis(exp_path=path,channel_seg=self.channel_seg)
+                # Add man interval or tag
                 if interval: exp.interval = interval
-                if man_tag: 
+                if man_tag: # input==dict with k=tag anf v=path or [path]
                     if path in man_tag: exp.tag = man_tag[path]
                 exp.pixel_distance(imgFold=imgFold,
                                 channel_seg=chan_seg,
@@ -457,9 +468,7 @@ class Experiments(Utility):
                                 ref_mask_ow=ref_mask_ow,
                                 )
                 # Update list and exp_dict
-                self.exps_analysis.append(exp)
-            # Log
-            print('Analysis were already processed for all experiments')        
+                self.exps_analysis.append(exp)     
         else:
             # Extract data
             self.masterdf_pixel = pd.DataFrame()
@@ -467,7 +476,10 @@ class Experiments(Utility):
             for path in exp_folder_path:
                 # Seg
                 exp = Analysis(exp_path=path,channel_seg=self.channel_seg)
+                # Add man interval or tag
                 if interval: exp.interval = interval
+                if man_tag: # input==dict with k=tag anf v=path or [path]
+                    if path in man_tag: exp.tag = man_tag[path]
                 exp.pixel_distance(imgFold=imgFold,
                                 channel_seg=chan_seg,
                                 maskFold=maskFold,
@@ -503,7 +515,7 @@ class Experiments(Utility):
         else: maxdmap = None
         return exp_folder_path,maxdmap
    
-    def exp_plot_indHM(self,col_name,deltaF,maxdt=None,intBin=5,col_lim=[0,2],exp_path=None,savedir=None,row_col=None,figsize=None,cbar_label=r'$\Delta$F/F$_{min}$',**kwargs):
+    def exp_plot_indHM(self,col_name,deltaF,maxdt=None,intBin=5,col_lim=[0,2],exp_path=None,savedir=None,row_col=None,figsize=None,cbar_label=r'$\Delta$F/F$_{min}$',**kwargs): #TODO: save figure
         # Get attribute
         exp_folder_path,maxdmap = self.pre_plotHM(exp_path=exp_path,maxdt=maxdt)
         
@@ -515,11 +527,12 @@ class Experiments(Utility):
             nrow = ceil(len(exp_folder_path)/ncol)
             ncol = ceil(len(exp_folder_path)/nrow) # Adjust col
             if nrow*ncol<len(exp_folder_path): nrow += 1
-        fig,ax = plt.subplots(nrow,ncol,sharey=True,figsize=figsize)
         
         # plot HM
         r = 0; c = 0 # Initialise the axes
         for path in exp_folder_path:
+            if savedir: savepath = savedir
+            else: savepath = path
             # Create tag and exp name
             split_path = path.split(sep)[-1].split('_')
             exp_name = '_'.join([path.split(sep)[-2],split_path[0],split_path[-1]])
@@ -528,8 +541,8 @@ class Experiments(Utility):
             # Bin it and plot it
             if maxdt: bin_df = Experiments.pixel_bin(df_pixel=df.loc[df['dmap']<=maxdmap,:].copy(),intBin=intBin,col_name=col_name,deltaF=deltaF)
             else: bin_df = Experiments.pixel_bin(df_pixel=df,intBin=intBin,col_name=col_name,deltaF=deltaF)
-            if nrow==1 and ncol==1: Experiments.plot_HM(bin_df,title=exp_name,axes=ax,savedir=savedir,cbar_label=cbar_label,col_lim=col_lim,**kwargs)
-            else: Experiments.plot_HM(bin_df,title=exp_name,axes=ax[r,c],savedir=savedir,cbar_label=cbar_label,col_lim=col_lim,**kwargs)
+            if nrow==1 and ncol==1: Experiments.plot_HM(bin_df,title=exp_name,savedir=savepath,figsize=figsize,cbar_label=cbar_label,col_lim=col_lim,**kwargs)
+            else: Experiments.plot_HM(bin_df,title=exp_name,savedir=savepath,figsize=figsize,cbar_label=cbar_label,col_lim=col_lim,**kwargs)
             # Adjust the axes
             c += 1
             if c==ncol: c = 0; r+=1
@@ -550,7 +563,6 @@ class Experiments(Utility):
             nrow = ceil(len(tag_lst)/ncol)
             ncol = ceil(len(tag_lst)/nrow) # Adjust col
             if nrow*ncol<len(tag_lst): nrow += 1
-        
 
         # plot HM
         r = 0; c = 0 # Initialise the axes
