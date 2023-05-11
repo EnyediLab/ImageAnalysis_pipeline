@@ -301,7 +301,7 @@ class Experiments(Utility):
             # Update exp_dict
             self.exp_dict[path] = self.exps[exp_lst.index(path)].exp_prop
 
-    def exp_analysis(self,imgFold,maskFold,channel_seg=None,exp_path=None,df_ow=False,do_cell_dist=False,maskLabel='wound',ref_mask_ow=False,signal_type='linear',**kwargs): 
+    def exp_analysis(self,imgFold,maskFold,channel_seg=None,exp_path=None,df_ow=False,do_cell_dist=False,maskLabel='wound',ref_mask_ow=False,signal_type='linear',**kwargs): # TODO: manual tag
         # Get channel and path
         chan_seg, exp_folder_path = self.exp_get_chanNpath(channel_seg=channel_seg,exp_path=exp_path)
         

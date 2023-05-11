@@ -140,6 +140,7 @@ class Utility():
                 # Update exp_dict
                 if not exists(join(sep,exp_path+sep,'exp_properties.pickle')):
                     # If old folder without exp_properties, then add it
+                    temp_exp_dict[exp_path]['status'] = 'active'
                     Utility.save_exp_prop(exp_path=exp_path,exp_prop=temp_exp_dict[exp_path])
                 else: exp_dict[exp_path] = Utility.open_exp_prop(exp_path=exp_path)
                 continue
