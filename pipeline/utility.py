@@ -594,7 +594,7 @@ class Utility():
                 # To be able to load either _f3digit.tif or _f4digit.tif
                 ndigit = len(im.split('_')[-1].split('.')[0][1:])
                 if mask_shape:
-                    if im.__contains__(f'mask_%s_%s_f%0{ndigit}d'%(channel_seg,mask_shape,f+1)):
+                    if im.__contains__(f'mask_%s%s_f%0{ndigit}d'%(channel_seg,mask_shape,f+1)):
                         exp_list.append(imread(join(sep,maskFold_path+sep,im)))
                 else:
                     if im.__contains__(f'mask_%s_f%0{ndigit}d'%(channel_seg,f+1)):

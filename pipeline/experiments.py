@@ -400,8 +400,14 @@ class Exp_Indiv(Utility):
             print(f"-> Segmented masks already exists for the '{chan_seg}' channel of exp. '{self.exp_path}'\n")
         else:
             #excpected file name: csv_name + channel_seg .csv
-            all_files = listdir(self.exp_path)    
-            csv_file_name = list(filter(lambda f: csv_name in f and f.endswith('.csv'), all_files))
+            # all_files = listdir(self.exp_path)    
+            # csv_file_name = list(filter(lambda f: csv_name in f and f.endswith('.csv'), all_files))
+            csv_file_name = []
+            for f in listdir(self.exp_path):
+                if f.endswith('.csv'):
+                    csv_file_name.append(f)
+
+            print(csv_file_name)
             if chan_seg in str(csv_file_name):
                 csv_file_name = [x for x in csv_file_name if chan_seg in x][0]
             else:

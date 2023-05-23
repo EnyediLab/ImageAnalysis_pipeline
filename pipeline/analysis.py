@@ -36,9 +36,11 @@ class Analysis(Exp_Indiv):
             if maskFold == 'Masks_Compartment':
                 # Load mask variable
                 chan_keys = self.exp_prop['channel_seg']['Masks_Compartment']
-                masks = [{chan:[{'maskFold_path':join(sep,self.exp_path+sep,maskFold),'channel_seg':chan,'mask_shape':shape} for shape in ['_mb','_cyto','_full']]} for chan in chan_keys]
+                shape_lst = ['_mb','_cyto','_full']
+                masks = [{chan:[{'maskFold_path':join(sep,self.exp_path+sep,maskFold),'channel_seg':chan,'mask_shape':shape} for shape in shape_lst]} for chan in chan_keys]
                 # Create all possible keys for masks
-                mask_keys = [f'{chan}{shape}' for chan in self.channel_list for shape in ['_mb','_cyto','_full']]
+                
+                mask_keys = [f'{chan}{shape}' for chan in self.channel_list for shape in shape_lst]
             elif maskFold == 'Masks_Class':
                 # Load mask variable
                 chan_keys = self.exp_prop['channel_seg']['Masks_Class']

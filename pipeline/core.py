@@ -117,12 +117,16 @@ class Experiments(Utility):
         Args:
             exp_path (str): Experiment path to be removed (Folder name should start with 's' followed by a number)
         """
-        if not exists(join(sep,exp_path+sep,'REMOVED_EXP.txt')):
-            open(join(sep,exp_path+sep,'REMOVED_EXP.txt'),'w')
-            self.exp_dict[exp_path]['status'] = 'REMOVED'
-        
-            if hasattr(self,'exp_folder_path'):
-                self.exp_folder_path.remove(exp_path)
+        if type(exp_path)==str:
+            exp_path = [exp_path]
+
+        for path in exp_path:
+            if not exists(join(sep,path+sep,'REMOVED_EXP.txt')):
+                open(join(sep,path+sep,'REMOVED_EXP.txt'),'w')
+                self.exp_dict[path]['status'] = 'REMOVED'
+            
+                if hasattr(self,'exp_folder_path'):
+                    self.exp_folder_path.remove(path)
     
     def exp_get_chanNpath(self,channel_seg=None,exp_path=None):
         # Get channel
