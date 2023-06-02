@@ -77,13 +77,6 @@ class Utility():
         if exp_para['z']*exp_para['t']*exp_para['v']!=exp_para['total_images_per_channel']:
             exp_para['z'] = 1
         
-        ### Add the interval of each frames
-        ts = np.round(np.diff(nd_obj.timesteps[::exp_para['v']*exp_para['z']]/1000).mean())
-        if np.isnan(ts): # if only single Image, set interval 0
-            exp_para['interval_sec'] = 0
-        else:
-            exp_para['interval_sec'] = int(ts)
-        
         ### Add channel properties
         exp_para['channel_list'] = channel_list
         exp_para['c'] = len(channel_list)
@@ -918,7 +911,7 @@ class Utility():
         sb.set_style()
         ax = sb.heatmap(df,ax=axes,**plot_args)
         ax.set_title(title)
-        ax.set_xlabel('Time (mim)')
+        ax.set_xlabel('Time (min)')
         ax.set_ylabel(r'Distance from wound ($\mu$m)')
         ax.invert_yaxis()
         
@@ -936,7 +929,7 @@ class Utility():
         return combi
     
     @staticmethod
-    def transfo_df(df,channel_list,stim_time=None,start_baseline=0,posCont_time=None,signal_type='linear'):
+    def transfo_df(df,channel_list,stim_time=None,start_baseline=0,posCont_time=None,signal_type='linear'): #TODO: Check deltaF
         # Check input
         if signal_type not in ['linear','ocsillatory']: raise AttributeError(f"signal_type can only be {['linear','ocsillatory']}")
         
@@ -947,10 +940,9 @@ class Utility():
         # Apply all possible ratio
         pair_lst = Utility.get_ratio(channel_list)
         for c1,c2 in pair_lst:
-            if c2==0:
-                df[f"{c1}/{c2}"] = 0
-            else:
-                df[f"{c1}/{c2}"] = df[c1]/df[c2]
+            df[f"{c1}/{c2}"] = df[c1]/df[c2]
+        df.replace([np.inf, -np.inf], 0, inplace=True)
+        df.fillna(0)
         
         # Add 'condition_label'
         df[cl] = 'other'
@@ -966,16 +958,18 @@ class Utility():
             new_col = [f"deltaF_{k}" for k in deltaF_lst]+[f"{col}_{pcd}" for col in bi_lst]
             df = df.reindex(columns=df.columns.to_list()+new_col,fill_value=0)
             for c in df['cell'].unique():
-                dft = df.loc[(df['cell']==c)]
+                dft = df.loc[(df['cell']==c)].copy()
                 # Apply all possible deltaF
                 for col_delta in deltaF_lst:
-                    f0 = float(dft.loc[df[cl]==bl,col_delta].mean())
+                    f0 = dft.groupby(cl).mean().loc[bl,col_delta]
+                    # f0 = float(dft.loc[df[cl]==bl,col_delta].mean())
                     if posCont_time: 
-                        fmax_val = float(dft.loc[df[cl]==pc,col_delta].max())
+                        # fmax_val = float(dft.loc[df[cl]==pc,col_delta].max())
+                        fmax_val = dft.groupby(cl).max().loc[pc,col_delta]
                         perf0 = fmax_val-f0
                     else: perf0 = f0
-                    dfperf0 = (dft[col_delta]-f0)/perf0
-                    df.loc[(df['cell']==c),f'deltaF_{col_delta}'] = dfperf0.values
+                    df0 = (dft[col_delta]-f0)/perf0
+                    df.loc[(df['cell']==c),f'deltaF_{col_delta}'] = df0.values
                 # Add all condition value
                 for col in bi_lst:
                     if signal_type=='linear':
@@ -983,9 +977,9 @@ class Utility():
                         df.loc[(df['cell']==c)&(df[cl]==st),f"{col}_{pcd}"] = df.loc[(df['cell']==c)&(df[cl]==st),col].mean()
                         df.loc[(df['cell']==c)&(df[cl]==pc),f"{col}_{pcd}"] = df.loc[(df['cell']==c)&(df[cl]==pc),col].mean()
                     else:
-                        df.loc[(df['cell']==c)&(df[cl]==bl),f"{col}_{pcd}"] = df.loc[(df['cell']==c)&(df[cl]==bl),col].mean()
-                        df.loc[(df['cell']==c)&(df[cl]==st),f"{col}_{pcd}"] = df.loc[(df['cell']==c)&(df[cl]==st),col].mean()
-                        df.loc[(df['cell']==c)&(df[cl]==pc),f"{col}_{pcd}"] = df.loc[(df['cell']==c)&(df[cl]==pc),col].mean()
+                        df.loc[(df['cell']==c)&(df[cl]==bl),f"{col}_{pcd}"] = df.loc[(df['cell']==c)&(df[cl]==bl),col].median()
+                        df.loc[(df['cell']==c)&(df[cl]==st),f"{col}_{pcd}"] = df.loc[(df['cell']==c)&(df[cl]==st),col].median()
+                        df.loc[(df['cell']==c)&(df[cl]==pc),f"{col}_{pcd}"] = df.loc[(df['cell']==c)&(df[cl]==pc),col].median()
         return Utility.get_outliers(df=df.copy(),col_lst=channel_list,signal_type=signal_type)
 
     @staticmethod
