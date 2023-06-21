@@ -8,6 +8,7 @@ from os.path import isdir
 from os import sep,walk
 import matplotlib.pyplot as plt
 from math import ceil
+import re
 
 # TODO: implement Docker
 # TODO: write all the docstrings
@@ -15,7 +16,7 @@ from math import ceil
 # TODO: implement parallel processing
 # TODO: choose the folder automatically
 class Experiments(Utility):
-    def __init__(self,parent_folder,channel_list,channel_seg,file_type='.nd2'): # TODO: enable tif file
+    def __init__(self,parent_folder,channel_list,channel_seg,file_type=None): # TODO: enable tif file
         """Class that regroups all experiments, for pre-, processing, analysis and ploting
 
         Args:
@@ -29,13 +30,15 @@ class Experiments(Utility):
             raise ValueError(f"{parent_folder} is not a correct path. Try a full path")
       
         self.parent_folder = parent_folder
-        self.file_type = file_type
+        if file_type: self.extension = (file_type,)
+        else: self.extension = ('.nd2','.tif','.tiff')
        
         # Get the path of all the nd2 files in all subsequent folders/subfolders and exp_dict if available
         self.imgS_path = []
         for root , subs, files in walk(self.parent_folder):
             for f in files:
-                if f.endswith(self.file_type):
+                # Look for all files with selected extension and that are not already processed 
+                if not re.search(r'f\d\d\d_z\d\d\d',f) and f.endswith(self.extension):
                     self.imgS_path.append(join(sep,root+sep,f))
         self.imgS_path.sort()
         self.channel_list = channel_list

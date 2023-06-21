@@ -2,7 +2,7 @@ from os.path import join,getsize
 from os.path import isdir,exists
 from os import mkdir,sep,scandir,listdir,remove
 from nd2reader import ND2Reader
-from tifffile import imread, imwrite
+from tifffile import imread,imwrite,TiffFile
 from skimage.morphology import disk,remove_small_objects,remove_small_holes
 from mahotas import distance
 import numpy as np
@@ -22,155 +22,204 @@ from scipy.stats import mode,iqr
 from scipy import stats
 import matplotlib.pyplot as plt
 import seaborn as sb
+import json
+
+def get_tif_meta(in_var):
+    # Open tif and read meta
+    with TiffFile(in_var) as tif:
+        i_m = tif.imagej_metadata
+        i_m['axes'] = tif.series[0].axes
+        for page in tif.pages:
+            for tag in page.tags:
+                if tag.name in ['ImageWidth','ImageLength',]:
+                    i_m[tag.name] = tag.value
+                if tag.name in ['XResolution','YResolution']:
+                    i_m[tag.name] = tag.value[0]/tag.value[1]
+
+    # Calculate pixelsize
+    xres,yres = i_m['XResolution'],i_m['YResolution']
+    w_pixel,h_pixel = i_m['ImageWidth'],i_m['ImageLength']
+    w_micron,h_micron = round(w_pixel/xres,ndigits=3),round(h_pixel/yres,ndigits=3)
+    x_vox,y_vox = w_micron/w_pixel,h_micron/h_pixel
+    if x_vox==y_vox:
+        pixsize = x_vox
+    else:
+        pixsize = (y_vox,x_vox)
+
+    # On the basis that the diffrent field of you are not saved under the same file
+    exp_para = dict(x=w_pixel,y=h_pixel,t=i_m['frames'],
+                    v = 1,total_images_per_channel=i_m['images'],
+                    pixel_microns=pixsize,
+                    interval_sec=i_m['finterval'],axes=i_m['axes'])
+    
+    if 'channels' in i_m: exp_para['true_c'] = i_m['channels']
+    else: exp_para['true_c'] = 1
+    
+    if 'slices' in i_m: exp_para['z'] = i_m['slices']
+    else: exp_para['z'] = 1
+    
+    return exp_para
+
+def get_ND2_meta(in_var): # [ ]: get tif metadata
+    # Get ND2 img metadata
+    nd_obj = ND2Reader(in_var)
+    
+    # Get meta (sizes always include txy)
+    exp_para = nd_obj.sizes
+    for k,v in nd_obj.metadata.items():
+        if k in ['date','fields_of_view','frames','z_levels','total_images_per_channel','channels','pixel_microns',]:
+            exp_para[k] = v
+    
+    if 'c' not in exp_para: exp_para['true_c'] = 1
+    else: 
+        exp_para['true_c'] = exp_para['c']
+        del exp_para['c']
+    
+    if 'v' not in exp_para: exp_para['v'] = 1
+    
+    if 'z' not in exp_para: exp_para['z'] = 1
+    ### Check for nd2 bugs with foccused EDF and z stack
+    if exp_para['z']*exp_para['t']*exp_para['v']!=exp_para['total_images_per_channel']:
+        exp_para['z'] = 1
+    
+    # Get the interval
+    ts = np.round(np.diff(nd_obj.timesteps[::exp_para['v']*exp_para['z']]/1000).mean())
+    if np.isnan(ts):# if only single Image, set interval 0
+        exp_para['interval_sec'] = 0
+    else:
+        exp_para['interval_sec'] = int(ts)
+    return exp_para
+
+def modifed_meta(channel_list,raw_chan_lst,img_path):
+    # Extract raw metadata
+    if img_path.endswith('.nd2'):
+        exp_para = Utility.get_ND2_meta(in_var=img_path)
+    elif img_path.endswith('.tif','.tiff'):
+        exp_para = Utility.get_tif_meta(in_var=img_path)
+    
+    # Setup metadeta and settings
+    temp_exp_dict = {}
+    
+    ### Add channel properties
+    exp_para['channel_list'] = channel_list
+    exp_para['c'] = len(channel_list)
+    if raw_chan_lst:
+        chan_lst = raw_chan_lst
+        exp_para['true_channel_list'] = raw_chan_lst
+    else:
+        if exp_para['true_c']>len(channel_list):
+            raise AttributeError(f"{img_path} contains {exp_para['true_c']} channels, but only {len(channel_list)} were given.\nPlease, add all the channels labels, in order, in the variable 'true_channel_list'")
+        else:
+            chan_lst = channel_list
+            exp_para['true_channel_list'] = channel_list
+    
+    # Create an experiment folder for each field of view
+    exp_pathS = []
+    for serie in range(exp_para['v']):
+        # Create subfolder in parent folder to save the image sequence with a serie's tag
+        path_split = img_path.split(sep)
+        path_split[-1] = path_split[-1].split('.')[0]+f"_s{serie+1}"
+        exp_path =  sep.join(path_split)
+        if not isdir(exp_path):
+            mkdir(exp_path)
+        exp_pathS.append(exp_path)
+        # Save para
+        exp_para['tag1'] = path_split[-3]
+        exp_para['tag2'] = path_split[-2]
+        exp_para['v_idx'] = serie+1
+        exp_prop = {'metadata':exp_para.copy(),'img_preProcess':{'bg_sub':'None','reg':False,'blur':False},
+        'fct_inputs':{},'masks_process':{}}
+        temp_exp_dict[exp_path] = exp_prop
+    
+    return chan_lst,exp_pathS,temp_exp_dict
+
+def write_ND2(img_path,channel_list,exp_para,raw_chan_lst,im_folder):
+    nd_obj = ND2Reader(img_path)
+    # Create stack and save image sequence                   
+    for chan in channel_list:
+        c = raw_chan_lst.index(chan)
+        
+        for t in range(exp_para['t']):
+            
+            for z in range(exp_para['z']):
+                # Get frame
+                if exp_para['z']>1: 
+                    temp_img = nd_obj.get_frame_2D(c=c,t=t,z=z,x=exp_para['x'],y=exp_para['y'],v=exp_para['v_idx']-1)
+                else: temp_img = nd_obj.get_frame_2D(c=c,t=t,x=exp_para['x'],y=exp_para['y'],v=exp_para['v_idx']-1)
+                # Save
+                imwrite(join(sep,im_folder+sep,chan+'_f%04d'%(t+1)+'_z%04d'%(z+1)+".tif"),temp_img.astype(np.uint16))
+
+def write_tif(img_path,channel_list,exp_para,raw_chan_lst,im_folder):
+    img = imread(img_path)
+    axes = exp_para['axes'] # img.shape will be in the order TZCYX
+    # Create stack and save image sequence                   
+    
+    for t in range(exp_para['t']):
+        if 'T' in axes: temp_img = img[t,...]
+        
+        for z in range(exp_para['z']):
+            if 'Z' in axes: temp_img = temp_img[z,...]
+            
+            for chan in channel_list:
+                c = raw_chan_lst.index(chan)
+                if 'C' in axes: temp_img = temp_img[c,...]
+                # Save img
+                imwrite(join(sep,im_folder+sep,chan+'_f%04d'%(t+1)+'_z%04d'%(z+1)+".tif"),temp_img.astype(np.uint16))
+
+def create_imseq(img_path,imseq_ow,channel_list,raw_chan_lst): #TODO: modify pickle as json
+    # Get ND2 meta
+    chan_lst,exp_pathS,temp_exp_dict = modifed_meta(channel_list=channel_list,raw_chan_lst=raw_chan_lst,img_path=img_path)
+    exp_dict = {} # Create empty dict
+    
+    ### Create the image sequence
+    for exp_path in exp_pathS:
+        # Create a folder to store all the images
+        im_folder = join(sep,exp_path+sep,'Images')
+        if not isdir(im_folder):
+            mkdir(im_folder)
+    
+        # If imseq exists just load stack. Else re-/create imseq
+        if exists(join(sep,exp_path+sep,'REMOVED_EXP.txt')):
+                print(f"-> Exp.: {exp_path} has been removed\n")
+                continue
+        
+        if any(scandir(im_folder)) and not imseq_ow:
+            # Log
+            print(f"-> Image sequence already exists for exp.: {exp_path}")
+            # Update exp_dict
+            if not exists(join(sep,exp_path+sep,'exp_properties.pickle')):
+                # If old folder without exp_properties, then add it
+                temp_exp_dict[exp_path]['status'] = 'active'
+                Utility.save_exp_prop(exp_path=exp_path,exp_prop=temp_exp_dict[exp_path])
+            else: exp_dict[exp_path] = Utility.open_exp_prop(exp_path=exp_path)
+            continue
+        
+        # Log
+        print(f"-> Image sequence is being created for exp.: {exp_path}")
+
+        # Remove all files from dir if ow, to avoid clash with older file version
+        if imseq_ow:
+            for files in sorted(listdir(im_folder)):
+                remove(join(sep,im_folder+sep,files))
+        
+        # Load exp_para
+        exp_prop = temp_exp_dict[exp_path]
+        exp_para = exp_prop['metadata']
+        exp_prop['status'] = 'active'
+        
+        if img_path.endswith('.nd2'):
+            write_ND2(img_path=img_path,channel_list=channel_list,exp_para=exp_para,chan_lst=chan_lst,im_folder=im_folder)
+        elif img_path.endswith('.tif','.tiff'):
+            write_tif(img_path=img_path,channel_list=channel_list,exp_para=exp_para,chan_lst=chan_lst,im_folder=im_folder)
+    
+        # Update exp_dict
+        exp_prop['fct_inputs']['create_imseq'] = {'img_path':img_path,'imseq_ow':imseq_ow,'channel_list':channel_list,'raw_chan_lst':raw_chan_lst,}
+        exp_dict[exp_path] = exp_prop
+        Utility.save_exp_prop(exp_path=exp_path,exp_prop=exp_prop)
+    return exp_dict
 
 class Utility():
     #### Utility for creating image seq
-    @staticmethod
-    def get_raw_ND2meta(in_var): # TODO: get tif metadata
-        # Get ND2 img metadata
-        if isinstance(in_var,ND2Reader):
-            nd_obj = in_var
-        elif isinstance(in_var,str):
-            nd_obj = ND2Reader(in_var)
-        
-        # Get meta (sizes always include txy)
-        exp_para = nd_obj.sizes
-        for k,v in nd_obj.metadata.items():
-            if k in ['date','fields_of_view','frames','z_levels','total_images_per_channel','channels','pixel_microns',]:
-                exp_para[k] = v
-        
-        if 'c' not in exp_para:
-            exp_para['true_c'] = 1
-        else:
-            exp_para['true_c'] = exp_para['c']
-            del exp_para['c']
-        
-        if 'v' not in exp_para:
-            exp_para['v'] = 1
-        if 'z' not in exp_para:
-            exp_para['z'] = 1
-        if exp_para['z']*exp_para['t']*exp_para['v']!=exp_para['total_images_per_channel']:
-            exp_para['z'] = 1
-        ts = np.round(np.diff(nd_obj.timesteps[::exp_para['v']*exp_para['z']]/1000).mean())
-        if np.isnan(ts):# if only single Image, set interval 0
-            exp_para['interval_sec'] = 0
-        else:
-            exp_para['interval_sec'] = int(ts)
-        return exp_para
-    
-    @staticmethod
-    def modifed_ND2meta(in_var,channel_list,true_channel_list,img_path):
-        # Create nd2r obj
-        if isinstance(in_var,ND2Reader):
-            nd_obj = in_var
-        elif isinstance(in_var,str):
-            nd_obj = ND2Reader(in_var)
-        
-        # Extract raw metadata
-        exp_para = Utility.get_raw_ND2meta(in_var=nd_obj)
-        
-        # Setup metadeta and settings
-        temp_exp_dict = {}
-
-        # Modify metadata
-        ### Check for nd2 bugs with foccused EDF and z stack
-        if exp_para['z']*exp_para['t']*exp_para['v']!=exp_para['total_images_per_channel']:
-            exp_para['z'] = 1
-        
-        ### Add channel properties
-        exp_para['channel_list'] = channel_list
-        exp_para['c'] = len(channel_list)
-        if true_channel_list:
-            chan_lst = true_channel_list
-            exp_para['true_channel_list'] = true_channel_list
-        else:
-            if exp_para['true_c']>len(channel_list):
-                raise AttributeError(f"{img_path} contains {exp_para['true_c']} channels, but only {len(channel_list)} were given.\nPlease, add all the channels labels, in order, in the variable 'true_channel_list'")
-            else:
-                chan_lst = channel_list
-                exp_para['true_channel_list'] = channel_list
-        
-        # Create an experiment folder for each field of view
-        exp_pathS = []
-        for serie in range(exp_para['v']):
-            # Create subfolder in parent folder to save the image sequence with a serie's tag
-            path_split = img_path.split(sep)
-            path_split[-1] = f"s{serie+1}_" + path_split[-1].replace('.nd2',"")
-            exp_path =  sep.join(path_split)
-            if not isdir(exp_path):
-                mkdir(exp_path)
-            exp_pathS.append(exp_path)
-            # Save para
-            exp_para['tag'] = path_split[-2]
-            exp_para['v_idx'] = serie+1
-            exp_prop = {'metadata':exp_para.copy(),'img_preProcess':{'bg_sub':'None','reg':False,'blur':False},
-            'fct_inputs':{},'masks_process':{}}
-            temp_exp_dict[exp_path] = exp_prop
-        
-        return chan_lst,exp_pathS,temp_exp_dict
-
-    @staticmethod
-    def create_imseq(img_path,imseq_ow,channel_list,file_type,true_channel_list):
-        # Get ND2 meta
-        nd_obj = ND2Reader(img_path)
-        chan_lst,exp_pathS,temp_exp_dict = Utility.modifed_ND2meta(in_var=nd_obj,channel_list=channel_list,true_channel_list=true_channel_list,img_path=img_path)
-        exp_dict = {} # Create empty dict
-        ### Create the image sequence
-        for exp_path in exp_pathS:
-            # Create a folder to store all the images
-            im_folder = join(sep,exp_path+sep,'Images')
-            if not isdir(im_folder):
-                mkdir(im_folder)
-        
-            # If imseq exists just load stack. Else re-/create imseq
-            if exists(join(sep,exp_path+sep,'REMOVED_EXP.txt')):
-                    print(f"-> Exp.: {exp_path} has been removed\n")
-                    continue
-            
-            if any(scandir(im_folder)) and not imseq_ow:
-                # Log
-                print(f"-> Image sequence already exists for exp.: {exp_path}")
-                # Update exp_dict
-                if not exists(join(sep,exp_path+sep,'exp_properties.pickle')):
-                    # If old folder without exp_properties, then add it
-                    temp_exp_dict[exp_path]['status'] = 'active'
-                    Utility.save_exp_prop(exp_path=exp_path,exp_prop=temp_exp_dict[exp_path])
-                else: exp_dict[exp_path] = Utility.open_exp_prop(exp_path=exp_path)
-                continue
-            
-            # Log
-            print(f"-> Image sequence is being created for exp.: {exp_path}")
-
-            # Remove all files from dir if ow, to avoid clash with older file version
-            if imseq_ow:
-                for files in sorted(listdir(im_folder)):
-                    remove(join(sep,im_folder+sep,files))
-            
-            # Load exp_para
-            exp_prop = temp_exp_dict[exp_path]
-            exp_para = exp_prop['metadata']
-            exp_prop['status'] = 'active'
-            
-            # Create stack and save image sequence                   
-            for chan in channel_list:
-                for frame in range(exp_para['t']):
-                    # Build image names
-                    frame_name = '_f%04d'%(frame+1)
-                    for z_slice in range(exp_para['z']):
-                        # Build z name
-                        z_name = '_z%04d'%(z_slice+1)
-                        # Get frame
-                        if exp_para['z']>1: temp_img = nd_obj.get_frame_2D(c=chan_lst.index(chan),t=frame,z=z_slice,x=exp_para['x'],y=exp_para['y'],v=exp_para['v_idx']-1)
-                        else: temp_img = nd_obj.get_frame_2D(c=chan_lst.index(chan),t=frame,x=exp_para['x'],y=exp_para['y'],v=exp_para['v_idx']-1)
-                        # Save
-                        imwrite(join(sep,im_folder+sep,chan+frame_name+z_name+".tif"),temp_img.astype(np.uint16))
-        
-            # Update exp_dict
-            exp_prop['fct_inputs']['create_imseq'] = {'img_path':img_path,'imseq_ow':imseq_ow,'channel_list':channel_list,'file_type':file_type,'true_channel_list':true_channel_list,}
-            exp_dict[exp_path] = exp_prop
-            Utility.save_exp_prop(exp_path=exp_path,exp_prop=exp_prop)
-        return exp_dict
-
     @staticmethod
     def man_bg_sub(imgFold_path): # TODO: use draw poly instead and run as batch
         print(f"--> Applying 'Manual' background substraction on {imgFold_path}")
@@ -685,15 +734,15 @@ class Utility():
         return stack
     
     @staticmethod
-    def open_exp_prop(exp_path):
-        with open(join(sep,exp_path+sep,"exp_properties.pickle"),'rb') as pickfile:
-            exp_prop = pickle.load(pickfile)
+    def open_settings(exp_path):
+        with open(join(sep,exp_path+sep,"exp_settings.json")) as fp:
+            exp_prop = json.load(fp)
         return exp_prop
     
-    @staticmethod
-    def save_exp_prop(exp_path,exp_prop):
-        with open(join(sep,exp_path+sep,"exp_properties.pickle"), 'wb') as file:
-            pickle.dump(exp_prop, file, protocol=pickle.HIGHEST_PROTOCOL)
+    @staticmethod #[ ]: Changed settings to json
+    def save_settings(exp_path,exp_prop):
+        with open(join(sep,exp_path+sep,"exp_settings.json"), "w") as fp:
+            json.dump(obj=exp_prop,fp=fp,indent=4)
 
     #### Utility for post-processing masks
     @staticmethod
