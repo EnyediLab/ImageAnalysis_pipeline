@@ -24,7 +24,7 @@ import matplotlib.pyplot as plt
 import seaborn as sb
 import json
 
-def get_tif_meta(in_var):
+def get_tif_meta(in_var): # [ ]: get tif metadata
     # Open tif and read meta
     with TiffFile(in_var) as tif:
         i_m = tif.imagej_metadata
@@ -52,6 +52,10 @@ def get_tif_meta(in_var):
                     pixel_microns=pixsize,
                     interval_sec=i_m['finterval'],axes=i_m['axes'])
     
+    # Check if the interval is not too long
+    if i_m['finterval']>2000: print(f"Warning: {in_var} has a frame interval of {i_m['finterval']}s")
+    
+    # Get the number of channels and slices
     if 'channels' in i_m: exp_para['true_c'] = i_m['channels']
     else: exp_para['true_c'] = 1
     
@@ -60,7 +64,7 @@ def get_tif_meta(in_var):
     
     return exp_para
 
-def get_ND2_meta(in_var): # [ ]: get tif metadata
+def get_ND2_meta(in_var): 
     # Get ND2 img metadata
     nd_obj = ND2Reader(in_var)
     
@@ -133,38 +137,59 @@ def modifed_meta(channel_list,raw_chan_lst,img_path):
     
     return chan_lst,exp_pathS,temp_exp_dict
 
-def write_ND2(img_path,channel_list,exp_para,raw_chan_lst,im_folder):
-    nd_obj = ND2Reader(img_path)
-    # Create stack and save image sequence                   
-    for chan in channel_list:
-        c = raw_chan_lst.index(chan)
-        
-        for t in range(exp_para['t']):
-            
-            for z in range(exp_para['z']):
-                # Get frame
-                if exp_para['z']>1: 
-                    temp_img = nd_obj.get_frame_2D(c=c,t=t,z=z,x=exp_para['x'],y=exp_para['y'],v=exp_para['v_idx']-1)
-                else: temp_img = nd_obj.get_frame_2D(c=c,t=t,x=exp_para['x'],y=exp_para['y'],v=exp_para['v_idx']-1)
-                # Save
-                imwrite(join(sep,im_folder+sep,chan+'_f%04d'%(t+1)+'_z%04d'%(z+1)+".tif"),temp_img.astype(np.uint16))
-
-def write_tif(img_path,channel_list,exp_para,raw_chan_lst,im_folder):
-    img = imread(img_path)
-    axes = exp_para['axes'] # img.shape will be in the order TZCYX
-    # Create stack and save image sequence                   
-    
+def name_img(exp_para):
+    # Create a name for each image
+    img_name = []
     for t in range(exp_para['t']):
-        if 'T' in axes: temp_img = img[t,...]
-        
         for z in range(exp_para['z']):
-            if 'Z' in axes: temp_img = temp_img[z,...]
+            for chan in exp_para['channel_list']:
+                img_name.append(chan+'_f%04d'%(t+1)+'_z%04d'%(z+1))
+    return img_name
+
+def write_ND2(img_path,img_name,v,exp_para,im_folder):
+    # Open ND2 file
+    nd_obj = ND2Reader(img_path)
+    
+    # Unpack img_name
+    t,z = [int(i[1:])-1 for i in img_name.split('_')[1:]]             
+    c = exp_para['true_channel_list'].index(img_name.split('_')[0])
+    
+    # Get the image       
+    if exp_para['z']>1: 
+        temp_img = nd_obj.get_frame_2D(c=c,t=t,z=z,x=exp_para['x'],y=exp_para['y'],v=v-1)
+    else: temp_img = nd_obj.get_frame_2D(c=c,t=t,x=exp_para['x'],y=exp_para['y'],v=v-1)
+    # Save
+    imwrite(join(sep,im_folder+sep,img_name)+".tif"),temp_img.astype(np.uint16)
+    
+def write_tif(img_path,img_name,exp_para,im_folder):
+    # Open tif file
+    # Add missing axes
+    pass
+
+
+
+# def write_tif(img_path,img_name,exp_para,im_folder):
+#     # Open tif file
+#     img = imread(img_path)
+#     axes = exp_para['axes'] # img.shape will be in the order TZCYX
+    
+#     # Unpack img_name
+#     t,z = [int(i[1:])-1 for i in img_name.split('_')[1:]]
+#     c = exp_para['true_channel_list'].index(img_name.split('_')[0])
+    
+#     # Get the image
+#     temp_img = img[t,z,...]
+#     for t in range(exp_para['t']):
+#         if 'T' in axes: temp_img = img[t,...]
+        
+#         for z in range(exp_para['z']):
+#             if 'Z' in axes: temp_img = temp_img[z,...]
             
-            for chan in channel_list:
-                c = raw_chan_lst.index(chan)
-                if 'C' in axes: temp_img = temp_img[c,...]
-                # Save img
-                imwrite(join(sep,im_folder+sep,chan+'_f%04d'%(t+1)+'_z%04d'%(z+1)+".tif"),temp_img.astype(np.uint16))
+#             for chan in channel_list:
+#                 c = raw_chan_lst.index(chan)
+#                 if 'C' in axes: temp_img = temp_img[c,...]
+#                 # Save img
+#                 imwrite(join(sep,im_folder+sep,chan+'_f%04d'%(t+1)+'_z%04d'%(z+1)+".tif"),temp_img.astype(np.uint16))
 
 def create_imseq(img_path,imseq_ow,channel_list,raw_chan_lst): #TODO: modify pickle as json
     # Get ND2 meta
