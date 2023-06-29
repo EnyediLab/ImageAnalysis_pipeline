@@ -52,8 +52,8 @@ ENV CONDA_DEFAULT_ENV $cp_dock
 # Install Cellpose and BaxTrack
 RUN conda run --no-capture-output -n cp_dock python -m pip install cellpose[gui]
 RUN mkdir /opt/baxTrack
-COPY for_redistribution_files_only /opt/baxTrack
-RUN cd /opt/baxTrack \
+COPY baxtrack /opt/baxtrack
+RUN cd /opt/baxtrack \
     && python setup.py install
 
 
