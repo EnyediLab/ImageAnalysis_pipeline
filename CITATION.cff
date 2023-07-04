@@ -10,8 +10,8 @@ authors:
   - family-names: "Tamás"
     given-names: "Szimonetta Xiena"
     orcid: https://orcid.org/0000-0008-3849-5068
-title: "ImageAnalysis pipeline"
-version: v0.1
-doi: 10.5281/zenodo.8094775
+title: "ImageAnalysis pipeline + Raw files"
+version: v0.2
+doi: 10.5281/zenodo.8113297
 date-released: 2023-06-29
 url: "https://github.com/EnyediLab/ImageAnalysis_pipeline"
