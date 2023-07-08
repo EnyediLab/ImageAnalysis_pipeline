@@ -1,4 +1,4 @@
-import BaxTrack as BTP # FIXME: remove MATLAB from here!!!
+# import BaxTrack as BTP # FIXME: remove MATLAB from here!!!
 from utility import Utility
 from experiments import Exp_Indiv
 import pandas as pd
@@ -219,38 +219,38 @@ class Experiments(Utility):
                     self.exps.append(exp)
                     self.exp_dict[path] = exp.exp_prop
         
-    def exp_bax_track(self,imgFold=None,maskFold='Masks_CP',exp_path=None,channel_seg=None,trim=False,track_ow=False,**kwargs):
-        """Track masks in both 2D and 3D, using Baxter Algorithem (Matlab). Save masks into 'Masks_BaxTracked'
+    # def exp_bax_track(self,imgFold=None,maskFold='Masks_CP',exp_path=None,channel_seg=None,trim=False,track_ow=False,**kwargs):
+    #     """Track masks in both 2D and 3D, using Baxter Algorithem (Matlab). Save masks into 'Masks_BaxTracked'
 
-        Args:
-            - imgFold (str, optional): Name of image folder to process. Includes 'Images' (raw images) and 'Images_Registered'. Defaults to 'Images'.
-            - maskFold (str, optional): Name of masks folder to process. Defaults to 'Masks_CP'.
-            - exp_path (str or [str], optional): List of all experiment to process. If None, then it will process all. Defaults to None.
-            - channel_seg (str, optional): Label of channel to segment. If None, it will use channel_seg. Defaults to None.
-            - trim (bool, optional): Remove all incomplete tracks. Defaults to False.
-            - track_ow (bool, optional): Overwrite existing tracked masks. Defaults to False.
+    #     Args:
+    #         - imgFold (str, optional): Name of image folder to process. Includes 'Images' (raw images) and 'Images_Registered'. Defaults to 'Images'.
+    #         - maskFold (str, optional): Name of masks folder to process. Defaults to 'Masks_CP'.
+    #         - exp_path (str or [str], optional): List of all experiment to process. If None, then it will process all. Defaults to None.
+    #         - channel_seg (str, optional): Label of channel to segment. If None, it will use channel_seg. Defaults to None.
+    #         - trim (bool, optional): Remove all incomplete tracks. Defaults to False.
+    #         - track_ow (bool, optional): Overwrite existing tracked masks. Defaults to False.
         
-        Kwargs (optional):
-            - TrackXSpeedStd (int): Max pixel distance move of object on x- and/or y-axis between 2 frames. Defaults to 12.
-            - TrackZSpeedStd (int): 3D only - Max pixel distance move of object on z-axis between 2 frames. Defaults to 3.
-        """
-        # Initiates MATLAB runtime
-        if not hasattr(self,'track'):
-            self.track = BTP.initialize()
+    #     Kwargs (optional):
+    #         - TrackXSpeedStd (int): Max pixel distance move of object on x- and/or y-axis between 2 frames. Defaults to 12.
+    #         - TrackZSpeedStd (int): 3D only - Max pixel distance move of object on z-axis between 2 frames. Defaults to 3.
+    #     """
+    #     # Initiates MATLAB runtime
+    #     if not hasattr(self,'track'):
+    #         self.track = BTP.initialize()
         
-        # Get channel and path
-        chan_seg, exp_folder_path = self.exp_get_chanNpath(channel_seg=channel_seg,exp_path=exp_path)
+    #     # Get channel and path
+    #     chan_seg, exp_folder_path = self.exp_get_chanNpath(channel_seg=channel_seg,exp_path=exp_path)
         
-        # List of paths
-        exp_lst = [exp.exp_path for exp in self.exps]
+    #     # List of paths
+    #     exp_lst = [exp.exp_path for exp in self.exps]
 
-        # Run track  
-        for path in exp_folder_path:
-            # track
-            self.exps[exp_lst.index(path)].baxter_tracking(objtrack=self.track,imgFold=imgFold,maskFold=maskFold,channel_seg=chan_seg,trim=trim,track_ow=track_ow,**kwargs)
+    #     # Run track  
+    #     for path in exp_folder_path:
+    #         # track
+    #         self.exps[exp_lst.index(path)].baxter_tracking(objtrack=self.track,imgFold=imgFold,maskFold=maskFold,channel_seg=chan_seg,trim=trim,track_ow=track_ow,**kwargs)
 
-            # Update exp_dict
-            self.exp_dict[path] = self.exps[exp_lst.index(path)].exp_prop
+    #         # Update exp_dict
+    #         self.exp_dict[path] = self.exps[exp_lst.index(path)].exp_prop
         
     def exp_track_cells(self,maskFold='Masks_CP',exp_path=None,channel_seg=None,stitch_threshold=0.75,shape_threshold=0.2,stitch_ow=False,n_mask=5):
         """Track masks of 2D cell lines experiment only.
@@ -590,3 +590,23 @@ class Experiments(Utility):
     # TODO: def add_exp_para_var()
     
     # TODO: def read_exp_para()
+
+
+def main(parent_folder: str, active_channel_list: list, full_channel_list: list=None, file_type: str=None):
+    # look through the folder and collect all image files
+    # Check if path is valid
+        if not isdir(parent_folder):
+            raise ValueError(f"{parent_folder} is not a correct path. Try a full path")
+      
+        if file_type: extension = (file_type,)
+        else: extension = ('.nd2','.tif','.tiff')
+       
+        # Get the path of all the nd2 files in all subsequent folders/subfolders and exp_dict if available
+        imgS_path = []
+        for root , subs, files in walk(parent_folder):
+            for f in files:
+                # Look for all files with selected extension and that are not already processed 
+                if not re.search(r'f\d\d\d_z\d\d\d',f) and f.endswith(extension):
+                    imgS_path.append(join(sep,root+sep,f))
+        imgS_path.sort()
+        
