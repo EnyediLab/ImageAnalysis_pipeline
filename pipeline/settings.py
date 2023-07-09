@@ -1,6 +1,6 @@
 from dataclasses import dataclass,fields,field
 import json
-from os import sep
+from os import sep,listdir
 from os.path import join
 
 
@@ -22,8 +22,14 @@ class Settings():
     level_1_tag: str
     active_channel_list: list
     full_channel_list: list
-        
-    def from_json(self, json_path: str):
+    background_sub: bool = False   
+    
+    @property
+    def processed_image_list(self)->list:
+        im_folder = join(sep,self.exp_path+sep,'Images')
+        return [join(sep,im_folder+sep,f) for f in sorted(listdir(im_folder)) if f.endswith('.tif')]
+    
+    def from_json(self, json_path: str)->dict:
         with open(json_path) as fp:
             file = json.load(fp)
         
@@ -31,12 +37,12 @@ class Settings():
         filteredArgDict = {k : v for k, v in file.items() if k in fieldSet}
         return self(**filteredArgDict)
     
-    def from_metadata(self,meta: dict):
+    def from_metadata(self, meta: dict)->dict:
         fieldSet = {f.name for f in fields(self) if f.init}
         filteredArgDict = {k : v for k, v in meta.items() if k in fieldSet}
         return self(**filteredArgDict)
     
-    def save_as_json(self):
+    def save_as_json(self)->None:
         with open(join(sep,self.exp_path+sep,'exp_settings.json'),'w') as fp:
             json.dump(self.__dict__,fp,indent=4)
 

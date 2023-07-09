@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import json
-from os import mkdir,sep,scandir
+from os import mkdir,sep,scandir,walk
+import re
 from time import time
 from typing import Protocol
 from nd2reader import ND2Reader
@@ -9,6 +10,7 @@ from os.path import join,isdir,exists
 import numpy as np
 from metadata import get_metadata
 from settings import Settings
+from smo import SMO
 
 def _name_img_list(meta: dict)-> list:
     # Create a name for each image
@@ -117,9 +119,9 @@ def _load_settings(exp_path: str, meta: dict)-> dict:
         settings = Settings.from_metadata(Settings,meta)
     return settings
 
-def create_img_seq(img_path: str, active_channel_list: list, img_seq_overwrite: bool=False):
+def create_img_seq(img_path: str, active_channel_list: list, full_channel_list: list=None, img_seq_overwrite: bool=False)-> list:
     # Get metadata
-    meta = get_metadata(img_path,active_channel_list)
+    meta = get_metadata(img_path,active_channel_list,full_channel_list)
     
     # If img are already processed
     settings_list = []
@@ -139,12 +141,47 @@ def create_img_seq(img_path: str, active_channel_list: list, img_seq_overwrite: 
         settings_list.append(Settings.from_metadata(Settings,meta))
     return settings_list
     
+def gather_all_images(parent_folder: str, file_type: str=None)-> list:
+    # look through the folder and collect all image files
+    if not isdir(parent_folder):
+        raise ValueError(f"{parent_folder} is not a correct path. Try a full path")
+    
+    if file_type: extension = (file_type,)
+    else: extension = ('.nd2','.tif','.tiff')
+    
+    # Get the path of all the nd2 files in all subsequent folders/subfolders and exp_dict if available
+    imgS_path = []
+    for root , _, files in walk(parent_folder):
+        for f in files:
+            # Look for all files with selected extension and that are not already processed 
+            if not re.search(r'f\d\d\d_z\d\d\d',f) and f.endswith(extension):
+                imgS_path.append(join(sep,root+sep,f))
+    return imgS_path.sort()
 
+def process_imgs(imgS_path: list, full_channel_list: list=None, img_seq_overwrite: bool=False)-> list:
+    settings_list = []
+    for img_path in imgS_path:
+        settings_list.extend(create_img_seq(img_path,active_channel_list,full_channel_list,img_seq_overwrite))
+    return settings_list
 
+def background_sub(settings_list: list, sigma: float=0.0, size: int=7)->None:
+    for settings in settings_list:
+        if settings.background_sub:
+            print(f"--> Background substraction was already apply on {settings.img_path}")
+            continue
+        
+        _apply_bg_sub(settings,sigma,size)
 
-
-
-
+def _apply_bg_sub(settings: Settings,sigma: float=0.0, size: int=7)->None:
+    # Initiate SMO
+    smo = SMO(shape=(settings.img_width,settings.img_length),sigma=sigma,size=size)
+    print(f"--> Applying background substraction on {settings.img_path}, with sigma={sigma} and size={size}")
+    for proc_img_path in settings.processed_image_list:
+        img = imread(proc_img_path)
+        bg_img = smo.bg_corrected(img)
+        # Reset neg val to 0
+        bg_img[bg_img<0] = 0
+        imwrite(proc_img_path,bg_img.astype(np.uint16))
 
 
 if __name__ == "__main__":

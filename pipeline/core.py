@@ -592,21 +592,5 @@ class Experiments(Utility):
     # TODO: def read_exp_para()
 
 
-def main(parent_folder: str, active_channel_list: list, full_channel_list: list=None, file_type: str=None):
-    # look through the folder and collect all image files
-    # Check if path is valid
-        if not isdir(parent_folder):
-            raise ValueError(f"{parent_folder} is not a correct path. Try a full path")
-      
-        if file_type: extension = (file_type,)
-        else: extension = ('.nd2','.tif','.tiff')
-       
-        # Get the path of all the nd2 files in all subsequent folders/subfolders and exp_dict if available
-        imgS_path = []
-        for root , subs, files in walk(parent_folder):
-            for f in files:
-                # Look for all files with selected extension and that are not already processed 
-                if not re.search(r'f\d\d\d_z\d\d\d',f) and f.endswith(extension):
-                    imgS_path.append(join(sep,root+sep,f))
-        imgS_path.sort()
+
         
