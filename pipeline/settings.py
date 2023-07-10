@@ -22,14 +22,20 @@ class Settings():
     level_1_tag: str
     active_channel_list: list
     full_channel_list: list
-    background_sub: bool = False   
+    background_sub: bool = False
+    channel_shift_corrected: bool = False
     
     @property
-    def processed_image_list(self)->list:
+    def processed_image_list(self)-> list:
         im_folder = join(sep,self.exp_path+sep,'Images')
         return [join(sep,im_folder+sep,f) for f in sorted(listdir(im_folder)) if f.endswith('.tif')]
     
-    def from_json(self, json_path: str)->dict:
+    @property
+    def register_images_list(self)-> list:
+        im_folder = join(sep,self.exp_path+sep,'Images_Registered')
+        return [join(sep,im_folder+sep,f) for f in sorted(listdir(im_folder)) if f.endswith('.tif')]
+    
+    def from_json(self, json_path: str)-> dict:
         with open(json_path) as fp:
             file = json.load(fp)
         
