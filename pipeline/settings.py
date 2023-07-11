@@ -2,6 +2,7 @@ from dataclasses import dataclass,fields,field
 import json
 from os import sep,listdir
 from os.path import join
+from functools import cached_property
 
 
 @dataclass
@@ -22,10 +23,11 @@ class Settings():
     level_1_tag: str
     active_channel_list: list
     full_channel_list: list
-    background_sub: bool = False
-    channel_shift_corrected: bool = False
+    background_sub: list = field(default_factory=list)
+    channel_shift_corrected: list = field(default_factory=list)
+    img_registered: list = field(default_factory=list)
     
-    @property
+    @cached_property
     def processed_image_list(self)-> list:
         im_folder = join(sep,self.exp_path+sep,'Images')
         return [join(sep,im_folder+sep,f) for f in sorted(listdir(im_folder)) if f.endswith('.tif')]
