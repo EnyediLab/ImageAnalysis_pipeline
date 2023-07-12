@@ -79,7 +79,7 @@ def _name_img_list(meta: dict)-> list:
         for t in range(meta['n_frames']):
             for z in range(meta['n_slices']):
                 for chan in meta['active_channel_list']:
-                    img_name_list.append([meta,chan+'_s%02d'%(serie+1)+'_f%04d'%(t+1)+'_z%04d'%(z+1)])
+                    img_name_list.append(chan+'_s%02d'%(serie+1)+'_f%04d'%(t+1)+'_z%04d'%(z+1))
     return img_name_list
 
 def _write_ND2(img_data: list)-> None:
@@ -123,11 +123,14 @@ def write_img(meta: dict)-> None:
     img_name_list = _name_img_list(meta)
     
     if meta['file_type'] == '.nd2':
-        with ProcessPoolExecutor() as executor:
+        # Add metadata and img_obj to img_name_list
+        img_name_list = [(meta,x) for x in img_name_list]
+        with ProcessPoolExecutor() as executor: # nd2 file are messed up with multithreading
             executor.map(_write_ND2,img_name_list)
     elif meta['file_type'] == '.tif':
-        img = _expand_dim_tif(meta['img_path'],meta['axes'])
-        img_name_list = [x+[img] for x in img_name_list]
+        # Add metadata and img to img_name_list
+        img_arr = _expand_dim_tif(meta['img_path'],meta['axes'])
+        img_name_list = [(meta,x,img_arr) for x in img_name_list]
         with ThreadPoolExecutor() as executor:
             executor.map(_write_tif,img_name_list)
 
@@ -185,22 +188,27 @@ def background_sub(settings_list: list, sigma: float=0.0, size: int=7, bg_sub_ov
             print(f"--> Background substraction was already apply on {settings.img_path}")
             continue
         print(f"--> Applying background substraction on {settings.img_path}, with sigma={sigma} and size={size}")
-        _apply_bg_sub((settings.img_width,settings.img_length),settings.processed_image_list,sigma,size)
+        
+        # Add smo_object to img_path
+        processed_image_list = settings.processed_image_list.copy()
+        smo = SMO(shape=(settings.img_width,settings.img_length),sigma=sigma,size=size)
+        processed_image_list = [(img_path,smo) for img_path in processed_image_list]
+        
+        with ProcessPoolExecutor() as executor:
+            executor.map(_apply_bg_sub,processed_image_list)
+            
         settings.background_sub = (f"sigma={sigma}",f"size={size}")
         settings.save_as_json()
     return settings_list
 
-def _apply_bg_sub(shape: tuple, processed_image_list: list, sigma: float=0.0, size: int=7)-> None:
+def _apply_bg_sub(processed_image: list)-> None:
     # Initiate SMO
-    smo = SMO(shape=shape,sigma=sigma,size=size)
-    
-    for proc_img_path in processed_image_list:
-        img = imread(proc_img_path)
-        bg_img = smo.bg_corrected(img)
-        # Reset neg val to 0
-        bg_img[bg_img<0] = 0
-        imwrite(proc_img_path,bg_img.astype(np.uint16))
-
+    proc_img_path,smo = processed_image
+    img = imread(proc_img_path)
+    bg_img = smo.bg_corrected(img)
+    # Reset neg val to 0
+    bg_img[bg_img<0] = 0
+    imwrite(proc_img_path,bg_img.astype(np.uint16))
 
 # # # # # # # # Image Registration # # # # # # # # # 
 def register_channel_shift(settings_list: list, reg_mtd: str, reg_channel: str, chan_shift_overwrite: bool=False)-> None:
@@ -405,8 +413,8 @@ if __name__ == "__main__":
     parent_folder = '/Users/benhome/BioTool/GitHub/cp_dev/Test_images/Run2'
     
     t1 = time()
-    settings_list = main(parent_folder,active_channel_list,'RFP',bg_sub=False,
-                         chan_shift=False,register_images=False,img_seq_overwrite=True)
+    settings_list = main(parent_folder,active_channel_list,'RFP',bg_sub=True,
+                         chan_shift=False,register_images=False,img_seq_overwrite=True,bg_sub_overwrite=True)
     t2 = time()
     if t2-t1<60: print(f"Time to process: {round(t2-t1,ndigits=3)} sec\n")
     else: print(f"Time to process: {round((t2-t1)/60,ndigits=1)} min\n")
