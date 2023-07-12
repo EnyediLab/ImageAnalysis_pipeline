@@ -9,6 +9,8 @@ from metadata import get_metadata
 from settings import Settings
 from smo import SMO
 from pystackreg import StackReg
+from multiprocessing import Pool
+from concurrent.futures import ProcessPoolExecutor,ThreadPoolExecutor
 
 
 # # # # # # # Utility # # # # # # # 
@@ -20,7 +22,7 @@ def gather_all_images(parent_folder: str, file_type: str=None)-> list:
     
     if file_type: extension = (file_type,)
     else: extension = ('.nd2','.tif','.tiff')
-    print(f"Searching for {extension} files in {parent_folder}")
+    print(f"\nSearching for {extension} files in {parent_folder}\n")
     # Get the path of all the nd2 files in all subsequent folders/subfolders and exp_dict if available
     imgS_path = []
     for root , _, files in walk(parent_folder):
@@ -28,17 +30,17 @@ def gather_all_images(parent_folder: str, file_type: str=None)-> list:
             # Look for all files with selected extension and that are not already processed 
             if not re.search(r'_f\d\d\d',f) and f.endswith(extension):
                 imgS_path.append(join(sep,root+sep,f))
-    print(imgS_path)
     return sorted(imgS_path)
 
 def _name_img_list(meta: dict)-> list:
     # Create a name for each image
-    img_name = []
-    for t in range(meta['n_frames']):
-        for z in range(meta['n_slices']):
-            for chan in meta['active_channel_list']:
-                img_name.append(chan+'_f%04d'%(t+1)+'_z%04d'%(z+1))
-    return img_name
+    img_name_list = []
+    for serie in range(meta['n_series']):
+        for t in range(meta['n_frames']):
+            for z in range(meta['n_slices']):
+                for chan in meta['active_channel_list']:
+                    img_name_list.append([meta,chan+'_s%02d'%(serie+1)+'_f%04d'%(t+1)+'_z%04d'%(z+1)])
+    return img_name_list
 
 def _is_active(exp_path: str)-> bool:
     if exists(join(sep,exp_path+sep,'REMOVED_EXP.txt')):
@@ -81,15 +83,17 @@ def load_stack(img_list: list, channel_list: str or list, frame_range: int or ra
 
 
 # # # # # # # Image sequence # # # # # # # 
-def _write_ND2(meta: dict, img_obj: ND2Reader, img_name: list, serie: int)-> None:
-    # Unpack img_name
-    t,z = [int(i[1:])-1 for i in img_name.split('_')[1:]]             
-    c = meta['full_channel_list'].index(img_name.split('_')[0])
+def _write_ND2(img_data: tuple)-> None:
+    # Unpack img_data
+    meta,img_name = img_data
+    img_obj = ND2Reader(meta['img_path'])
+    serie,frame,z_slice = [int(i[1:])-1 for i in img_name.split('_')[1:]]
+    chan = meta['full_channel_list'].index(img_name.split('_')[0])
     
     # Get the image       
     if meta['n_slices']>1: 
-        img = img_obj.get_frame_2D(c=c,t=t,z=z,x=meta['img_width'],y=meta['img_length'],v=serie)
-    else: img = img_obj.get_frame_2D(c=c,t=t,x=meta['img_width'],y=meta['img_length'],v=serie)
+        img = img_obj.get_frame_2D(c=chan,t=frame,z=z_slice,x=meta['img_width'],y=meta['img_length'],v=serie)
+    else: img = img_obj.get_frame_2D(c=chan,t=frame,x=meta['img_width'],y=meta['img_length'],v=serie)
     # Save
     im_folder = join(sep,meta['exp_path_list'][serie]+sep,'Images')
     imwrite(join(sep,im_folder+sep,img_name)+".tif",img.astype(np.uint16))
@@ -106,28 +110,44 @@ def _expand_dim_tif(img_path:str, axes: str)-> np.ndarray:
             img = np.expand_dims(img,axis=ax)
     return img
 
-def _write_tif(meta: dict,img_name: list,img: np.array)-> None:
-    # Unpack img_name
-    t,z = [int(i[1:])-1 for i in img_name.split('_')[1:]]             
-    c = meta['full_channel_list'].index(img_name.split('_')[0])
+def _write_tif(img_data: tuple)-> None:
+    # Unpack img_data
+    meta,img_name,img = img_data
+    # img = _expand_dim_tif(meta['img_path'],meta['axes'])
+    _,frame,z_slice = [int(i[1:])-1 for i in img_name.split('_')[1:]]             
+    chan = meta['full_channel_list'].index(img_name.split('_')[0])
     
     im_folder = join(sep,meta['exp_path_list'][0]+sep,'Images')
-    imwrite(join(sep,im_folder+sep,img_name)+".tif",img[t,z,c,...].astype(np.uint16))
+    imwrite(join(sep,im_folder+sep,img_name)+".tif",img[frame,z_slice,chan,...].astype(np.uint16))
     
-def write_img(meta: dict,img_name_list: list, serie: int)-> None:
-    if meta['file_type'] == '.tif':
+def write_img(meta: dict)-> None:
+    # Create all the names for the images+metadata
+    img_name_list = _name_img_list(meta)
+    
+    # for img_name in img_name_list:
+    #     if meta['file_type'] == '.nd2':  
+    #         _write_ND2(img_name)
+    #     elif meta['file_type'] == '.tif':
+    #         _write_tif(img_name)
+    # if meta['file_type'] == '.nd2':
+    #     with Pool() as pool:
+    #         results = pool.imap_unordered(_write_ND2,img_name_list)
+    #         for result in results:
+    #             result.join()
+    # elif meta['file_type'] == '.tif':
+    #     with Pool() as pool:
+    #         results = pool.imap_unordered(_write_tif,img_name_list)
+    #         for result in results:
+    #             result.join()
+            
+    if meta['file_type'] == '.nd2':
+        with ThreadPoolExecutor() as executor:
+            executor.map(_write_ND2,img_name_list)
+    elif meta['file_type'] == '.tif':
         img = _expand_dim_tif(meta['img_path'],meta['axes'])
-        meta['exp_path'] = meta['exp_path_list'][0]
-    elif meta['file_type'] == '.nd2':
-        img_obj = ND2Reader(meta['img_path'])
-        meta['exp_path'] = meta['exp_path_list'][serie]
-    
-    for img_name in img_name_list:
-        if meta['file_type'] == '.nd2':  
-            _write_ND2(meta,img_obj,img_name,serie)
-        elif meta['file_type'] == '.tif':
-            _write_tif(meta,img_name,img)
-    return meta
+        img_name_list = [x+[img] for x in img_name_list]
+        with ThreadPoolExecutor() as executor:
+            executor.map(_write_tif,img_name_list)
 
 def _load_settings(exp_path: str, meta: dict)-> dict:
     if exists(join(sep,exp_path+sep,'exp_settings.json')):
@@ -145,6 +165,8 @@ def create_img_seq(img_path: str, active_channel_list: list, full_channel_list: 
     settings_list = []
     for serie in range(meta['n_series']):
         exp_path = meta['exp_path_list'][serie]
+        meta['exp_path'] = exp_path
+        
         img_folder = join(sep,exp_path+sep,'Images')
         if not exists(img_folder):
             mkdir(img_folder)
@@ -160,8 +182,8 @@ def create_img_seq(img_path: str, active_channel_list: list, full_channel_list: 
         
         # If images are not processed
         print(f"-> Exp.: {exp_path} is being processed\n")
-        img_name_list = _name_img_list(meta)
-        meta = write_img(meta,img_name_list,serie)
+        write_img(meta)
+        
         settings = Settings.from_metadata(Settings,meta)
         settings.save_as_json()
         settings_list.append(settings)
@@ -379,6 +401,7 @@ def main(parent_folder: str, active_channel_list: list, reg_channel: str, full_c
     settings_list = process_all_imgs_file(imgS_path,active_channel_list,full_channel_list,img_seq_overwrite)
     
     if bg_sub:
+        if img_seq_overwrite==True: bg_sub_overwrite=True
         background_sub(settings_list,sigma,size,bg_sub_overwrite)
     
     if chan_shift:
@@ -400,8 +423,8 @@ if __name__ == "__main__":
     parent_folder = '/Users/benhome/BioTool/GitHub/cp_dev/Test_images/Run2'
     
     t1 = time()
-    settings_list = main(parent_folder,active_channel_list,'RFP',chan_shift=True,register_images=True,
-                         reg_ref='first',reg_overwrite=True)
+    settings_list = main(parent_folder,active_channel_list,'RFP',bg_sub=False,
+                         chan_shift=False,register_images=False,img_seq_overwrite=True)
     t2 = time()
-    print(f"Time to get meta: {t2-t1}")
-    print(settings_list)
+    if t2-t1<60: print(f"Time to process: {round(t2-t1,ndigits=3)} sec\n")
+    else: print(f"Time to process: {round((t2-t1)/60,ndigits=1)} min\n")
