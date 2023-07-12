@@ -9,7 +9,6 @@ from metadata import get_metadata
 from settings import Settings
 from smo import SMO
 from pystackreg import StackReg
-from multiprocessing import Pool
 from concurrent.futures import ProcessPoolExecutor,ThreadPoolExecutor
 
 
@@ -31,16 +30,6 @@ def gather_all_images(parent_folder: str, file_type: str=None)-> list:
             if not re.search(r'_f\d\d\d',f) and f.endswith(extension):
                 imgS_path.append(join(sep,root+sep,f))
     return sorted(imgS_path)
-
-def _name_img_list(meta: dict)-> list:
-    # Create a name for each image
-    img_name_list = []
-    for serie in range(meta['n_series']):
-        for t in range(meta['n_frames']):
-            for z in range(meta['n_slices']):
-                for chan in meta['active_channel_list']:
-                    img_name_list.append([meta,chan+'_s%02d'%(serie+1)+'_f%04d'%(t+1)+'_z%04d'%(z+1)])
-    return img_name_list
 
 def _is_active(exp_path: str)-> bool:
     if exists(join(sep,exp_path+sep,'REMOVED_EXP.txt')):
@@ -83,7 +72,17 @@ def load_stack(img_list: list, channel_list: str or list, frame_range: int or ra
 
 
 # # # # # # # Image sequence # # # # # # # 
-def _write_ND2(img_data: tuple)-> None:
+def _name_img_list(meta: dict)-> list:
+    # Create a name for each image
+    img_name_list = []
+    for serie in range(meta['n_series']):
+        for t in range(meta['n_frames']):
+            for z in range(meta['n_slices']):
+                for chan in meta['active_channel_list']:
+                    img_name_list.append([meta,chan+'_s%02d'%(serie+1)+'_f%04d'%(t+1)+'_z%04d'%(z+1)])
+    return img_name_list
+
+def _write_ND2(img_data: list)-> None:
     # Unpack img_data
     meta,img_name = img_data
     img_obj = ND2Reader(meta['img_path'])
@@ -110,10 +109,9 @@ def _expand_dim_tif(img_path:str, axes: str)-> np.ndarray:
             img = np.expand_dims(img,axis=ax)
     return img
 
-def _write_tif(img_data: tuple)-> None:
+def _write_tif(img_data: list)-> None:
     # Unpack img_data
     meta,img_name,img = img_data
-    # img = _expand_dim_tif(meta['img_path'],meta['axes'])
     _,frame,z_slice = [int(i[1:])-1 for i in img_name.split('_')[1:]]             
     chan = meta['full_channel_list'].index(img_name.split('_')[0])
     
@@ -124,24 +122,8 @@ def write_img(meta: dict)-> None:
     # Create all the names for the images+metadata
     img_name_list = _name_img_list(meta)
     
-    # for img_name in img_name_list:
-    #     if meta['file_type'] == '.nd2':  
-    #         _write_ND2(img_name)
-    #     elif meta['file_type'] == '.tif':
-    #         _write_tif(img_name)
-    # if meta['file_type'] == '.nd2':
-    #     with Pool() as pool:
-    #         results = pool.imap_unordered(_write_ND2,img_name_list)
-    #         for result in results:
-    #             result.join()
-    # elif meta['file_type'] == '.tif':
-    #     with Pool() as pool:
-    #         results = pool.imap_unordered(_write_tif,img_name_list)
-    #         for result in results:
-    #             result.join()
-            
     if meta['file_type'] == '.nd2':
-        with ThreadPoolExecutor() as executor:
+        with ProcessPoolExecutor() as executor:
             executor.map(_write_ND2,img_name_list)
     elif meta['file_type'] == '.tif':
         img = _expand_dim_tif(meta['img_path'],meta['axes'])
