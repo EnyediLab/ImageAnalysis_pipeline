@@ -11,7 +11,7 @@ authors:
     given-names: "Szimonetta Xénia"
     orcid: https://orcid.org/0009-0008-3849-5068
 title: "ImageAnalysis pipeline + Raw files"
-version: v0.3
-doi: 10.5281/zenodo.8138967
+version: v0.4
+doi: 10.5281/zenodo.8138956
 date-released: 2023-07-12
 url: "https://github.com/EnyediLab/ImageAnalysis_pipeline"
