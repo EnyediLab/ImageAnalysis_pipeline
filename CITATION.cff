@@ -8,8 +8,8 @@ authors:
     given-names: "Fabian Gregor"
     orcid: https://orcid.org/0009-0008-1501-8971
   - family-names: "Tamás"
-    given-names: "Szimonetta Xiena"
-    orcid: https://orcid.org/0000-0008-3849-5068
+    given-names: "Szimonetta Xiéna"
+    orcid: https://orcid.org/0009-0008-3849-5068
 title: "ImageAnalysis pipeline + Raw files"
 version: v0.3
 doi: 10.5281/zenodo.8136125
