@@ -10,6 +10,7 @@ from settings import Settings
 from smo import SMO
 from pystackreg import StackReg
 from concurrent.futures import ProcessPoolExecutor,ThreadPoolExecutor
+from multiprocessing import Pool
 
 
 # # # # # # # Utility # # # # # # # 
@@ -73,6 +74,7 @@ def load_stack(img_list: list, channel_list: str or list, frame_range: int or ra
 
 # # # # # # # Image sequence # # # # # # # 
 def _name_img_list(meta: dict)-> list:
+    """Return a list of generated image names based on the metadata of the experiment"""
     # Create a name for each image
     img_name_list = []
     for serie in range(meta['n_series']):
@@ -98,6 +100,7 @@ def _write_ND2(img_data: list)-> None:
     imwrite(join(sep,im_folder+sep,img_name)+".tif",img.astype(np.uint16))
     
 def _expand_dim_tif(img_path:str, axes: str)-> np.ndarray:
+    """Adjust the dimension of the image to TZCYX"""
     # Open tif file
     img = imread(img_path)
     ref_axes = 'TZCYX'
@@ -134,7 +137,8 @@ def write_img(meta: dict)-> None:
         with ThreadPoolExecutor() as executor:
             executor.map(_write_tif,img_name_list)
 
-def _load_settings(exp_path: str, meta: dict)-> dict:
+def _initialize_settings(exp_path: str, meta: dict)-> dict:
+    """Initialize Settings object from json file or metadata"""
     if exists(join(sep,exp_path+sep,'exp_settings.json')):
         settings = Settings.from_json(Settings,join(sep,exp_path+sep,'exp_settings.json'))
     else:
@@ -143,6 +147,7 @@ def _load_settings(exp_path: str, meta: dict)-> dict:
     return settings
 
 def create_img_seq(img_path: str, active_channel_list: list, full_channel_list: list=None, img_seq_overwrite: bool=False)-> list:
+    """Create an image seq for individual image files (.nd2 or .tif), based on the number of field of view and return a list of Settings objects"""
     # Get metadata
     meta = get_metadata(img_path,active_channel_list,full_channel_list)
     
@@ -162,7 +167,7 @@ def create_img_seq(img_path: str, active_channel_list: list, full_channel_list: 
         
         if _is_img_processed(img_folder) and not img_seq_overwrite:
             print(f"-> Exp.: {exp_path} has already been processed\n")
-            settings_list.append(_load_settings(exp_path,meta))
+            settings_list.append(_initialize_settings(exp_path,meta))
             continue
         
         # If images are not processed
@@ -175,6 +180,7 @@ def create_img_seq(img_path: str, active_channel_list: list, full_channel_list: 
     return settings_list
     
 def process_all_imgs_file(imgS_path: list, active_channel_list: list, full_channel_list: list=None, img_seq_overwrite: bool=False)-> list:
+    """Process all the images files (.nd2 or .tif) found in parent_folder and return a list of Settings objects"""
     settings_list = []
     for img_path in imgS_path:
         settings_list.extend(create_img_seq(img_path,active_channel_list,full_channel_list,img_seq_overwrite))
@@ -183,6 +189,7 @@ def process_all_imgs_file(imgS_path: list, active_channel_list: list, full_chann
 
 # # # # # # # # Image bg_substraction # # # # # # # #
 def background_sub(settings_list: list, sigma: float=0.0, size: int=7, bg_sub_overwrite: bool=False)-> list:
+    """For each experiment, apply a background substraction on the images and return a list of Settings objects"""
     for settings in settings_list:
         if settings.background_sub and not bg_sub_overwrite:
             print(f"--> Background substraction was already apply on {settings.img_path}")
@@ -211,13 +218,36 @@ def _apply_bg_sub(processed_image: list)-> None:
     imwrite(proc_img_path,bg_img.astype(np.uint16))
 
 # # # # # # # # Image Registration # # # # # # # # # 
-def register_channel_shift(settings_list: list, reg_mtd: str, reg_channel: str, chan_shift_overwrite: bool=False)-> None:
+def _chan_shift_file_name(file_list: list, channel_list: list, reg_channel: str)-> list:
+    """Return a list of tuples of file names to be registered. 
+    The first element of the tuple is the reference image and the second is the image to be registered.
+    """
+    d = {chan: [file for file in file_list if chan in file] for chan in channel_list}
+    chan_2b_process = channel_list.copy()
+    chan_2b_process.remove(reg_channel)
+    tuples_list = []
+    for chan in chan_2b_process:
+        ref_list = sorted(d[reg_channel])
+        chan_list = sorted(d[chan])
+        for i in range(len(ref_list)):
+            tuples_list.append((ref_list[i],chan_list[i]))
+    return tuples_list
+
+def channel_shift_register(settings_list: list, reg_mtd: str, reg_channel: str, chan_shift_overwrite: bool=False)-> None:
     for settings in settings_list:
         if settings.channel_shift_corrected and not chan_shift_overwrite:
             print(f"--> Channel shift was already apply on {settings.img_path}")
             continue
         stackreg = _reg_mtd(reg_mtd)
-        _correct_chan_shift(stackreg,settings,reg_channel)
+        print(f"--> Applying channel shift correction on {settings.exp_path}")
+        
+        # Generate input data for parallel processing
+        img_group_list = _chan_shift_file_name(settings.processed_image_list,settings.active_channel_list,reg_channel)
+        input_data = [(stackreg,img_list) for img_list in img_group_list]
+                
+        with ProcessPoolExecutor() as executor:
+            executor.map(_correct_chan_shift,input_data)
+        # Save settings
         settings.channel_shift_corrected = [f"reg_channel={reg_channel}",f"reg_mtd={reg_mtd}"]
         settings.save_as_json()
 
@@ -255,35 +285,21 @@ def _reg_mtd(reg_mtd: str)-> StackReg:
     elif reg_mtd=='affine':          stackreg = StackReg(StackReg.AFFINE)
     elif reg_mtd=='bilinear':        stackreg = StackReg(StackReg.BILINEAR)
     return stackreg
-        
-def _correct_chan_shift(stackreg: StackReg, settings: Settings, reg_channel: str)-> None:
-    if settings.channel_shift_corrected:
-        print(f"--> Channel shift correction was already apply on {settings.exp_path}")
-        return settings
+
+def _correct_chan_shift(input_data: list)-> None:
+    # Unpack input data
+    stackreg,file_list = input_data
     
-    # If not already corrected
-    print(f"--> Applying channel shift correction on {settings.exp_path}")
-    reg_img_path = join(sep,settings.exp_path+sep,'Images')
-    chan_list = settings.active_channel_list.copy()
-    chan_list.remove(reg_channel)
-    
-    for f in range(settings.n_frames):
-        print(f"---> Frame {f+1}/{settings.n_frames}")
-        # Load ref
-        ref = load_stack(img_list=settings.processed_image_list,channel_list=reg_channel,frame_range=f)
-        # Load im
-        frame_name = '_f%04d'%(f+1)
-        for chan in chan_list:
-            im = load_stack(img_list=settings.processed_image_list,channel_list=chan,frame_range=f)
-            for z in range(settings.n_slices):
-                # Build z name
-                z_name = '_z%04d.tif'%(z+1)
-                # Apply transfo
-                if settings.n_slices>1: reg_im = stackreg.register_transform(ref[z,...],im[z,...])
-                else: reg_im = stackreg.register_transform(ref,im)
-                # Save
-                reg_im[reg_im<0] = 0
-                imwrite(join(sep,reg_img_path+sep,chan+frame_name+z_name),reg_im.astype(np.uint16))
+    # Load ref_img (which is not contained in chan_list)
+    ref_img = imread(file_list[0])
+    # Load img
+    img_file = file_list[1]
+    img = imread(img_file)
+    # Apply transfo
+    reg_img = stackreg.register_transform(ref_img,img)
+    # Save
+    reg_img[reg_img<0] = 0
+    imwrite(img_file,reg_img.astype(np.uint16))
 
 def _register_with_first(stackreg: StackReg, settings: Settings, reg_channel: str, img_folder: str)-> None:
     # Load ref image
@@ -396,7 +412,7 @@ def main(parent_folder: str, active_channel_list: list, reg_channel: str, full_c
     
     if chan_shift:
         if bg_sub_overwrite==True: chan_shift_overwrite=True
-        register_channel_shift(settings_list,reg_mtd,reg_channel,chan_shift_overwrite)
+        channel_shift_register(settings_list,reg_mtd,reg_channel,chan_shift_overwrite)
     
     if register_images:
         register_img(settings_list,reg_channel,reg_mtd,reg_ref,reg_overwrite)
@@ -414,7 +430,8 @@ if __name__ == "__main__":
     
     t1 = time()
     settings_list = main(parent_folder,active_channel_list,'RFP',bg_sub=True,
-                         chan_shift=False,register_images=False,img_seq_overwrite=True,bg_sub_overwrite=True)
+                         chan_shift=True,register_images=False,
+                         img_seq_overwrite=False,bg_sub_overwrite=False,chan_shift_overwrite=True)
     t2 = time()
     if t2-t1<60: print(f"Time to process: {round(t2-t1,ndigits=3)} sec\n")
     else: print(f"Time to process: {round((t2-t1)/60,ndigits=1)} min\n")

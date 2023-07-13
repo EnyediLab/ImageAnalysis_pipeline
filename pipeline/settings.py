@@ -15,14 +15,15 @@ class Settings():
     full_n_channels: int
     n_slices: int
     n_series: int
+    active_channel_list: list
+    full_channel_list: list
+    img_path: str
+    
     pixel_microns: float
     interval_sec: float
     file_type: str
-    img_path: str
     level_0_tag: str
     level_1_tag: str
-    active_channel_list: list
-    full_channel_list: list
     background_sub: list = field(default_factory=list)
     channel_shift_corrected: list = field(default_factory=list)
     img_registered: list = field(default_factory=list)
@@ -55,13 +56,10 @@ class Settings():
             json.dump(self.__dict__,fp,indent=4)
 
 
-
-
-
-
-
 if __name__ == '__main__':
-    json_path = '/Users/benhome/BioTool/GitHub/cp_dev/exp_settings.json'
+    json_path = '/Users/benhome/BioTool/GitHub/cp_dev/Test_images/Run2/c2z25t23v1_nd2_s1/exp_settings.json'
     
     settings = Settings.from_json(Settings,json_path=json_path)
     print(settings)
+    
+    
