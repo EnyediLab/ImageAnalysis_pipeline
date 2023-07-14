@@ -1,13 +1,10 @@
 
-from dataclasses import dataclass, field
-from functools import lru_cache
 from os import sep, mkdir
-from os.path import isdir,join
+from os.path import isdir
 from time import time
 from tifffile import TiffFile
 from nd2reader import ND2Reader
 import numpy as np
-
 
 def get_tif_meta(img_path: str) -> dict:
     # Open tif and read meta
@@ -100,7 +97,9 @@ def _create_exp_folder(meta: dict) -> dict:
         meta['level_0_tag'] = path_split[-2]
     return meta
 
+#  Main function
 def get_metadata(img_path: str,active_channel_list: list,full_channel_list:list=None)-> dict:
+    """Gather metadata from all image files (.nd2 and/or .tif) and is attributed to its own experiment folder"""
     if img_path.endswith('.nd2'):
         meta = get_ND2_meta(img_path)
         meta['file_type'] = '.nd2'
