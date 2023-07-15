@@ -1,3 +1,4 @@
+from __future__ import annotations
 from dataclasses import dataclass,fields,field
 import json
 from os import sep,listdir,getcwd
@@ -16,6 +17,8 @@ class Process(LoadClass):
     background_sub: list = field(default_factory=list)
     channel_shift_corrected: list = field(default_factory=list)
     img_registered: list = field(default_factory=list)
+    img_blured: list = field(default_factory=list)
+    simple_threshold: list = field(default_factory=list)
 
 @dataclass
 class ImageData(LoadClass):
@@ -46,7 +49,7 @@ class Experiment(LoadClass):
     process: Process = field(default_factory=Process)
 
     @cached_property
-    def processed_image_list(self)-> list:
+    def processed_images_list(self)-> list:
         im_folder = join(sep,self.exp_path+sep,'Images')
         return [join(sep,im_folder+sep,f) for f in sorted(listdir(im_folder)) if f.endswith('.tif')]
     
@@ -54,12 +57,18 @@ class Experiment(LoadClass):
     def register_images_list(self)-> list:
         im_folder = join(sep,self.exp_path+sep,'Images_Registered')
         return [join(sep,im_folder+sep,f) for f in sorted(listdir(im_folder)) if f.endswith('.tif')]
+    
+    @property
+    def blur_images_list(self)-> list:
+        im_folder = join(sep,self.exp_path+sep,'Images_Blur')
+        return [join(sep,im_folder+sep,f) for f in sorted(listdir(im_folder)) if f.endswith('.tif')]
 
     def save_as_json(self)->None:
         main_dict = self.__dict__.copy()
         main_dict['img_data'] = self.img_data.__dict__
         main_dict['analysis'] = self.analysis.__dict__
         main_dict['process'] = self.process.__dict__
+        
         with open(join(sep,self.exp_path+sep,'exp_settings.json'),'w') as fp:
             json.dump(main_dict,fp,indent=4)
     
@@ -78,7 +87,25 @@ def init_from_dict(input_dict: dict)-> Experiment:
     input_dict['process'] = Process.from_dict(Process,input_dict)
     return Experiment.from_dict(Experiment,input_dict)
 
-
+def _img_list_src(exp_set: Experiment, img_fold_src: str)-> list[str]:
+    """If not manually specified, return the latest processed images list"""
+    
+    if img_fold_src and img_fold_src == 'Images':
+        return exp_set.processed_images_list
+    
+    if img_fold_src and img_fold_src == 'Images_Registered':
+        return exp_set.register_images_list
+    
+    if img_fold_src and img_fold_src == 'Images_Blured':
+        return exp_set.blur_images_list
+    
+    # If not manually specified, return the latest processed images list
+    if exp_set.process.img_blured:
+        return exp_set.blur_images_list
+    elif exp_set.process.img_registered:
+        return exp_set.register_images_list
+    else:
+        return exp_set.processed_images_list
 
 
 if __name__ == '__main__':

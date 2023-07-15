@@ -1,4 +1,3 @@
-
 from os import sep, mkdir
 from os.path import isdir
 from time import time

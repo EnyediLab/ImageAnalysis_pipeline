@@ -1,3 +1,10 @@
+from __future__ import annotations
+from os import getcwd
+import sys
+parent_dir = getcwd()
+sys.path.append(parent_dir)
+
+from ImageAnalysis_pipeline.pipeline.classes import Experiment
 from concurrent.futures import ProcessPoolExecutor
 from tifffile import imread, imwrite
 from smo import SMO
@@ -13,7 +20,7 @@ def _apply_bg_sub(processed_image: list)-> None:
     imwrite(proc_img_path,bg_img.astype(np.uint16))
 
 # # # # # # # # main function # # # # # # # #
-def background_sub(exp_set_list: list, sigma: float=0.0, size: int=7, bg_sub_overwrite: bool=False)-> list:
+def background_sub(exp_set_list: list[Experiment], sigma: float=0.0, size: int=7, bg_sub_overwrite: bool=False)-> list[Experiment]:
     """For each experiment, apply a background substraction on the images and return a list of Settings objects"""
     for exp_set in exp_set_list:
         if exp_set.process.background_sub and not bg_sub_overwrite:
@@ -22,12 +29,12 @@ def background_sub(exp_set_list: list, sigma: float=0.0, size: int=7, bg_sub_ove
         print(f"--> Applying background substraction on {exp_set.exp_path}, with sigma={sigma} and size={size}")
         
         # Add smo_object to img_path
-        processed_image_list = exp_set.processed_image_list.copy()
+        processed_images_list = exp_set.processed_images_list.copy()
         smo = SMO(shape=(exp_set.img_data.img_width,exp_set.img_data.img_length),sigma=sigma,size=size)
-        processed_image_list = [(img_path,smo) for img_path in processed_image_list]
+        processed_images_list = [(img_path,smo) for img_path in processed_images_list]
         
         with ProcessPoolExecutor() as executor:
-            executor.map(_apply_bg_sub,processed_image_list)
+            executor.map(_apply_bg_sub,processed_images_list)
             
         exp_set.process.background_sub = (f"sigma={sigma}",f"size={size}")
         exp_set.save_as_json()

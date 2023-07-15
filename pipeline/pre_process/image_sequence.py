@@ -1,19 +1,20 @@
+from __future__ import annotations
 from os import sep,mkdir,scandir,getcwd
 from os.path import join, exists
 import sys
 parent_dir = getcwd() 
 # Add the parent to sys.pah
 sys.path.append(parent_dir)
+from ImageAnalysis_pipeline.pipeline.classes import init_from_dict,init_from_json,Experiment
 
 from nd2reader import ND2Reader
 from tifffile import imwrite, imread
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor,ThreadPoolExecutor
-from ImageAnalysis_pipeline.pipeline.classes import init_from_dict,init_from_json
-from metadata import get_metadata
+from ImageAnalysis_pipeline.pipeline.pre_process.metadata import get_metadata
 
  
-def _name_img_list(meta_dict: dict)-> list:
+def _name_img_list(meta_dict: dict)-> list[str]:
     """Return a list of generated image names based on the metadata of the experiment"""
     # Create a name for each image
     img_name_list = []
@@ -87,7 +88,7 @@ def _init_exp_settings(exp_path: str, meta_dict: dict)-> dict:
         exp_set = init_from_dict(meta_dict)
     return exp_set
 
-def img_seq_exp(img_path: str, active_channel_list: list, full_channel_list: list=None, img_seq_overwrite: bool=False)-> list:
+def img_seq_exp(img_path: str, active_channel_list: list[str], full_channel_list: list[str]=None, img_seq_overwrite: bool=False)-> list[Experiment]:
     """Create an image seq for individual image files (.nd2 or .tif), based on the number of field of view and return a list of Settings objects"""
     # Get metadata
     meta_dict = get_metadata(img_path,active_channel_list,full_channel_list)
@@ -121,8 +122,8 @@ def img_seq_exp(img_path: str, active_channel_list: list, full_channel_list: lis
     return exp_set_list
     
 # # # # # # # main function # # # # # # #
-def img_seq_all(img_path_list: list, active_channel_list: list, 
-                          full_channel_list: list=None, img_seq_overwrite: bool=False)-> list:
+def img_seq_all(img_path_list: list[str], active_channel_list: list, 
+                          full_channel_list: list=None, img_seq_overwrite: bool=False)-> list[Experiment]:
     """Process all the images files (.nd2 or .tif) found in parent_folder and return a list of Settings objects"""
     exp_set_list = []
     for img_path in img_path_list:

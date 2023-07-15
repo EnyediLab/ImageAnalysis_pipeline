@@ -1,3 +1,4 @@
+from __future__ import annotations
 from os.path import join, exists
 from os import sep, mkdir,getcwd
 import sys
@@ -9,17 +10,9 @@ import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 from pystackreg import StackReg
 from ImageAnalysis_pipeline.pipeline.classes import Experiment
+from typing import Iterable
 
-def load_stack(img_list: list, channel_list: str or list, frame_range: int or range or list)-> np.ndarray:
-    # Check for channel
-    if isinstance(channel_list,str):
-        channel_list = [channel_list]
-
-    if isinstance(frame_range,int):
-        frame_range = [frame_range]
-    elif isinstance(frame_range,range):
-        frame_range = list(frame_range)
-    
+def load_stack(img_list: list[str], channel_list: Iterable[str], frame_range: Iterable[int])-> np.ndarray:
     # Load/Reload stack. Expected shape of images tzxyc
     exp_list = []
     for chan in channel_list:
@@ -83,19 +76,19 @@ def _correct_chan_shift(input_data: list)-> None:
 
 def _register_with_first(stackreg: StackReg, exp_set: Experiment, reg_channel: str, img_folder: str)-> None:
     # Load ref image
-    img_ref = load_stack(img_list=exp_set.processed_image_list,channel_list=reg_channel,frame_range=0)
+    img_ref = load_stack(img_list=exp_set.processed_imagess_list,channel_list=[reg_channel],frame_range=[0])
     if exp_set.img_data.n_slices>1: img_ref = np.amax(img_ref,axis=0)
     
     for f in range(exp_set.img_data.n_frames):
         # Load image to register
-        img = load_stack(img_list=exp_set.processed_image_list,channel_list=reg_channel,frame_range=f)
+        img = load_stack(img_list=exp_set.processed_imagess_list,channel_list=[reg_channel],frame_range=[f])
         if exp_set.img_data.n_slices>1: img = np.amax(img,axis=0)
         # Get the transfo matrix
         tmats = stackreg.register(ref=img_ref,mov=img)
         
         for chan in exp_set.active_channel_list:
             # Load image to transform
-            img = load_stack(img_list=exp_set.processed_image_list,channel_list=chan,frame_range=f)
+            img = load_stack(img_list=exp_set.processed_images_list,channel_list=[chan],frame_range=[f])
             for z in range(exp_set.img_data.n_slices):
                 # Apply transfo
                 if exp_set.img_data.n_slices==1: reg_img = stackreg.transform(mov=img,tmat=tmats)
@@ -106,19 +99,19 @@ def _register_with_first(stackreg: StackReg, exp_set: Experiment, reg_channel: s
 
 def _register_with_mean(stackreg: StackReg, exp_set: Experiment, reg_channel: str, img_folder: str)-> None:
     # Load ref image
-    if exp_set.img_data.n_slices==1: img_ref = np.mean(load_stack(img_list=exp_set.processed_image_list,channel_list=reg_channel,frame_range=range(exp_set.img_data.n_frames)),axis=0)
-    else: img_ref = np.mean(np.amax(load_stack(img_list=exp_set.processed_image_list,channel_list=reg_channel,frame_range=range(exp_set.img_data.n_frames)),axis=1),axis=0)
+    if exp_set.img_data.n_slices==1: img_ref = np.mean(load_stack(img_list=exp_set.processed_images_list,channel_list=[reg_channel],frame_range=range(exp_set.img_data.n_frames)),axis=0)
+    else: img_ref = np.mean(np.amax(load_stack(img_list=exp_set.processed_images_list,channel_list=[reg_channel],frame_range=range(exp_set.img_data.n_frames)),axis=1),axis=0)
 
     for f in range(exp_set.img_data.n_frames):
         # Load image to register
-        img = load_stack(img_list=exp_set.processed_image_list,channel_list=reg_channel,frame_range=f)
+        img = load_stack(img_list=exp_set.processed_images_list,channel_list=[reg_channel],frame_range=[f])
         if exp_set.img_data.n_slices>1: img = np.amax(img,axis=0)
         # Get the transfo matrix
         tmats = stackreg.register(ref=img_ref,mov=img)
         
         for chan in exp_set.active_channel_list:
             # Load image to transform
-            img = load_stack(img_list=exp_set.processed_image_list,channel_list=chan,frame_range=f)
+            img = load_stack(img_list=exp_set.processed_images_list,channel_list=[chan],frame_range=[f])
             for z in range(exp_set.img_data.n_slices):
                 # Apply transfo
                 if exp_set.img_data.n_slices==1: reg_img = stackreg.transform(mov=img,tmat=tmats)
@@ -131,21 +124,21 @@ def _register_with_previous(stackreg: StackReg, exp_set: Experiment, reg_channel
     for f in range(1,exp_set.img_data.n_frames):
         # Load ref image
         if f==1:
-            img_ref = load_stack(img_list=exp_set.processed_image_list,channel_list=reg_channel,frame_range=f-1)
+            img_ref = load_stack(img_list=exp_set.processed_images_list,channel_list=[reg_channel],frame_range=[f-1])
             if exp_set.img_data.n_slices>1: img_ref = np.amax(img_ref,axis=0)
         else:
-            img_ref = load_stack(img_list=exp_set.register_images_list,channel_list=reg_channel,frame_range=f-1)
+            img_ref = load_stack(img_list=exp_set.register_images_list,channel_list=[reg_channel],frame_range=[f-1])
             if exp_set.img_data.n_slices>1: img_ref = np.amax(img_ref,axis=0)
         # Load image to register
-        img = load_stack(img_list=exp_set.processed_image_list,channel_list=reg_channel,frame_range=f)
+        img = load_stack(img_list=exp_set.processed_images_list,channel_list=[reg_channel],frame_range=[f])
         if exp_set.img_data.n_slices>1: img = np.amax(img,axis=0)
         # Get the transfo matrix
         tmats = stackreg.register(ref=img_ref,mov=img)
         print(exp_set.active_channel_list)
         for chan in exp_set.active_channel_list:
             # Load image to transform
-            img = load_stack(img_list=exp_set.processed_image_list,channel_list=chan,frame_range=f)
-            fst_img = load_stack(img_list=exp_set.processed_image_list,channel_list=chan,frame_range=f-1)
+            img = load_stack(img_list=exp_set.processed_images_list,channel_list=[chan],frame_range=[f])
+            fst_img = load_stack(img_list=exp_set.processed_images_list,channel_list=[chan],frame_range=[f-1])
             for z in range(exp_set.img_data.n_slices):
                 # Copy the first image to the reg_folder
                 if f==1:
@@ -159,7 +152,7 @@ def _register_with_previous(stackreg: StackReg, exp_set: Experiment, reg_channel
                 imwrite(join(sep,img_folder+sep,chan+'_f%04d'%(f+1)+'_z%04d.tif'%(z+1)),reg_img.astype(np.uint16))
 
 # # # # # # # # main functions # # # # # # # # # 
-def channel_shift_register(exp_set_list: list, reg_mtd: str, reg_channel: str, chan_shift_overwrite: bool=False)-> None:
+def channel_shift_register(exp_set_list: list[Experiment], reg_mtd: str, reg_channel: str, chan_shift_overwrite: bool=False)-> list[Experiment]:
     for exp_set in exp_set_list:
         if exp_set.process.channel_shift_corrected and not chan_shift_overwrite:
             print(f"--> Channel shift was already apply on {exp_set.exp_path}")
@@ -168,7 +161,7 @@ def channel_shift_register(exp_set_list: list, reg_mtd: str, reg_channel: str, c
         print(f"--> Applying channel shift correction on {exp_set.exp_path}")
         
         # Generate input data for parallel processing
-        img_group_list = _chan_shift_file_name(exp_set.processed_image_list,exp_set.active_channel_list,reg_channel)
+        img_group_list = _chan_shift_file_name(exp_set.processed_images_list,exp_set.active_channel_list,reg_channel)
         input_data = [(stackreg,img_list) for img_list in img_group_list]
                 
         with ProcessPoolExecutor() as executor:
@@ -176,8 +169,9 @@ def channel_shift_register(exp_set_list: list, reg_mtd: str, reg_channel: str, c
         # Save settings
         exp_set.process.channel_shift_corrected = [f"reg_channel={reg_channel}",f"reg_mtd={reg_mtd}"]
         exp_set.save_as_json()
+    return exp_set_list
 
-def register_img(exp_set_list: list, reg_channel: str, reg_mtd: str, reg_ref: int, reg_overwrite: bool=False)-> None:
+def register_img(exp_set_list: list[Experiment], reg_channel: str, reg_mtd: str, reg_ref: int, reg_overwrite: bool=False)-> list[Experiment]:
     for exp_set in exp_set_list:
         img_folder = join(sep,exp_set.exp_path+sep,'Images_Registered')
         if not exists(img_folder):
@@ -199,4 +193,4 @@ def register_img(exp_set_list: list, reg_channel: str, reg_mtd: str, reg_ref: in
             _register_with_mean(stackreg,exp_set,reg_channel,img_folder)
         exp_set.process.img_registered = [f"reg_channel={reg_channel}",f"reg_mtd={reg_mtd}",f"reg_ref={reg_ref}"]
         exp_set.save_as_json()
-            
+    return exp_set_list
