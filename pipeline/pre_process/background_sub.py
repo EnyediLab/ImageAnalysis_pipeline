@@ -30,7 +30,7 @@ def background_sub(exp_set_list: list[Experiment], sigma: float=0.0, size: int=7
         
         # Add smo_object to img_path
         processed_images_list = exp_set.processed_images_list.copy()
-        smo = SMO(shape=(exp_set.img_data.img_width,exp_set.img_data.img_length),sigma=sigma,size=size)
+        smo = SMO(shape=(exp_set.img_properties.img_width,exp_set.img_properties.img_length),sigma=sigma,size=size)
         processed_images_list = [(img_path,smo) for img_path in processed_images_list]
         
         with ProcessPoolExecutor() as executor:

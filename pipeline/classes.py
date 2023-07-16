@@ -19,9 +19,10 @@ class Process(LoadClass):
     img_registered: list = field(default_factory=list)
     img_blured: list = field(default_factory=list)
     simple_threshold: list = field(default_factory=list)
+    cellpose_segmentation: dict = field(default_factory=dict)
 
 @dataclass
-class ImageData(LoadClass):
+class ImageProperties(LoadClass):
     """Get metadata from nd2 or tif file, using ND2Reader or TiffFile and ImageJ"""
     img_width: int
     img_length: int
@@ -44,7 +45,7 @@ class Experiment(LoadClass):
     exp_path: str
     active_channel_list: list
     full_channel_list: list
-    img_data: ImageData = field(default_factory=ImageData)
+    img_properties: ImageProperties = field(default_factory=ImageProperties)
     analysis: Analysis = field(default_factory=Analysis)
     process: Process = field(default_factory=Process)
 
@@ -60,12 +61,12 @@ class Experiment(LoadClass):
     
     @property
     def blur_images_list(self)-> list:
-        im_folder = join(sep,self.exp_path+sep,'Images_Blur')
+        im_folder = join(sep,self.exp_path+sep,'Images_Blured')
         return [join(sep,im_folder+sep,f) for f in sorted(listdir(im_folder)) if f.endswith('.tif')]
 
     def save_as_json(self)->None:
         main_dict = self.__dict__.copy()
-        main_dict['img_data'] = self.img_data.__dict__
+        main_dict['img_data'] = self.img_properties.__dict__
         main_dict['analysis'] = self.analysis.__dict__
         main_dict['process'] = self.process.__dict__
         
@@ -76,13 +77,13 @@ class Experiment(LoadClass):
 def init_from_json(json_path: str)-> Experiment:
     with open(json_path) as fp:
         meta = json.load(fp)
-    meta['img_data'] = ImageData.from_dict(ImageData,meta['img_data'])
+    meta['img_data'] = ImageProperties.from_dict(ImageProperties,meta['img_data'])
     meta['analysis'] = Analysis.from_dict(Analysis,meta['analysis'])
     meta['process'] = Process.from_dict(Process,meta['process'])
     return Experiment.from_dict(Experiment,meta)
     
 def init_from_dict(input_dict: dict)-> Experiment:
-    input_dict['img_data'] = ImageData.from_dict(ImageData,input_dict)
+    input_dict['img_data'] = ImageProperties.from_dict(ImageProperties,input_dict)
     input_dict['analysis'] = Analysis.from_dict(Analysis,input_dict)
     input_dict['process'] = Process.from_dict(Process,input_dict)
     return Experiment.from_dict(Experiment,input_dict)

@@ -6,8 +6,7 @@ sys.path.append(parent_dir)
 from time import time
 
 from ImageAnalysis_pipeline.pipeline.pre_process.main_pre_process import pre_process_all
-from ImageAnalysis_pipeline.pipeline.segmentation.segmentation import simple_threshold
-
+from ImageAnalysis_pipeline.pipeline.segmentation.segmentation import simple_threshold # TODO: fix module path 
 if __name__ == "__main__":
 
     t1 = time()

@@ -6,7 +6,8 @@ parent_dir = getcwd()
 # Add the parent to sys.pah
 sys.path.append(parent_dir)
 
-from ImageAnalysis_pipeline.pipeline.classes import Experiment,_img_list_src
+from ImageAnalysis_pipeline.pipeline.classes import Experiment
+from ImageAnalysis_pipeline.pipeline.loading_data import _img_list_src
 from typing import Iterable
 from tifffile import imwrite, imread
 from cv2 import GaussianBlur
@@ -30,10 +31,10 @@ def blur_img(exp_set_list: list[Experiment], blur_kernel: list[int], blur_sigma:
 
     # Get the exp_path and load exp_para
     for exp_set in exp_set_list:
-        # Check if exist
+        # Check if exists
         if exp_set.process.img_blured and not blur_overwrite:
-                # Log
-            print(f"--> Images are already blured with {exp_set.process.img_blur}")
+            # Log
+            print(f"--> Images are already blured with {exp_set.process.img_blured}")
             continue
         
         # Log
@@ -48,6 +49,6 @@ def blur_img(exp_set_list: list[Experiment], blur_kernel: list[int], blur_sigma:
             executor.map(_apply_blur,img_data)
             
         # Save settings
-        exp_set.process.img_blur = [f"blur_kernel={blur_kernel}",f"blur_sigma={blur_sigma}"]
+        exp_set.process.img_blured = [f"blur_kernel={blur_kernel}",f"blur_sigma={blur_sigma}"]
         exp_set.save_as_json()
     return exp_set_list

@@ -10,28 +10,35 @@ from skimage.morphology import remove_small_objects,remove_small_holes
 import numpy as np
 from tifffile import imread,imsave
 from concurrent.futures import ThreadPoolExecutor
-from ImageAnalysis_pipeline.pipeline.classes import Experiment,_img_list_src
+from ImageAnalysis_pipeline.pipeline.classes import Experiment
+from ImageAnalysis_pipeline.pipeline.loading_data import _img_list_src
 
+def _determine_threshold(img: np.ndarray, manual_threshold: float=None)-> float:
+    # Set the threshold's value. Either as input or automatically if thres==None
+    threshold_value = manual_threshold
+    if not manual_threshold:
+        threshold_value,_ = cv2.threshold(img.astype(np.uint8),0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+    return threshold_value
+
+def _clean_mask(mask: np.ndarray)-> np.ndarray:
+    mask = remove_small_holes(mask.astype(bool),50)
+    return remove_small_objects(mask,1000).astype(np.uint16)
 
 def _apply_threshold(img_data: list)-> float:
     img_path,manual_threshold = img_data
     img = imread(img_path)
     savedir = img_path.replace("Images","Masks_SimpleThreshold").replace('_Registered','').replace('_Blured','')
-    # Set the threshold's value. Either as input or automatically if thres==None
-    if manual_threshold:
-        used_threshold = manual_threshold
-    else:
-        used_threshold,_ = cv2.threshold(img.astype(np.uint8),0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+    
+    threshold_value = _determine_threshold(img,manual_threshold)
     
     # Apply the threshold
-    _,mask = cv2.threshold(img.astype(np.uint16),used_threshold,255,cv2.THRESH_BINARY)
+    _,mask = cv2.threshold(img.astype(np.uint16),threshold_value,255,cv2.THRESH_BINARY)
     
-    # Clean the mask of small holes and small objects
-    mask = remove_small_holes(mask.astype(bool),50)
-    mask = remove_small_objects(mask,1000).astype(bool)
-    imsave(savedir,mask.astype(np.uint16))
-    return manual_threshold
+    # Clean and save
+    imsave(savedir,_clean_mask(mask))
+    return threshold_value
 
+# # # # # # # # main functions # # # # # # # # # 
 def simple_threshold(exp_set_list: list[Experiment], simple_thresold_overwrite: bool=False, manual_threshold: int=None, img_fold_src: str=None)-> list[Experiment]:
     for exp_set in exp_set_list:
         # Check if exist
@@ -39,31 +46,33 @@ def simple_threshold(exp_set_list: list[Experiment], simple_thresold_overwrite: 
                 # Log
             print(f"--> Simple threshold images already exist with {exp_set.process.simple_threshold}")
             continue
-        # Generate list of image source
+        
+        # If not, Generate list of image source
         img_list_src = _img_list_src(exp_set, img_fold_src)
         img_data = [(img_path,manual_threshold) for img_path in img_list_src]
         
-        # log
-        if manual_threshold:
-            print(f"--> Thresholding images with a MANUAL threshold of {manual_threshold}")
-        else:
-            print(f"--> Thresholding images with a AUTOMATIC threshold")
-
-        # Create blur dir
+        # Create blur dir and apply blur
         if not isdir(join(sep,exp_set.exp_path+sep,'Masks_SimpleThreshold')):
             mkdir(join(sep,exp_set.exp_path+sep,'Masks_SimpleThreshold'))
         
+        print(f"--> Thresholding images in {exp_set.exp_path}")
+        # Determine threshold value
         threshold_value_list = []
         with ThreadPoolExecutor() as executor:
             results = executor.map(_apply_threshold,img_data)
             for result in results:
                 threshold_value_list.append(result)
-        # Log
-        threshold_value = round(np.mean(threshold_value_list),ndigits=2)
-        print(f"\t---> Threshold value used: {threshold_value}")
-        
+
+        # log
+        log_value = "MANUAL"
+        threshold_value = manual_threshold
+        if not manual_threshold:
+            log_value = "AUTOMATIC"
+            threshold_value = round(np.mean(threshold_value_list),ndigits=2)
+        print(f"\t---> Threshold created with: {log_value} threshold of {threshold_value}")
+
         # Save settings
-        exp_set.process.simple_threshold = [f"Manual threshold={manual_threshold}"]
+        exp_set.process.simple_threshold = [f"{log_value} threshold={threshold_value}"]
         exp_set.save_as_json()    
     return exp_set_list  
 
