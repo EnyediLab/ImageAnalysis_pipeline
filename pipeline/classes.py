@@ -66,7 +66,7 @@ class Experiment(LoadClass):
 
     def save_as_json(self)->None:
         main_dict = self.__dict__.copy()
-        main_dict['img_data'] = self.img_properties.__dict__
+        main_dict['img_properties'] = self.img_properties.__dict__
         main_dict['analysis'] = self.analysis.__dict__
         main_dict['process'] = self.process.__dict__
         
@@ -77,36 +77,16 @@ class Experiment(LoadClass):
 def init_from_json(json_path: str)-> Experiment:
     with open(json_path) as fp:
         meta = json.load(fp)
-    meta['img_data'] = ImageProperties.from_dict(ImageProperties,meta['img_data'])
+    meta['img_properties'] = ImageProperties.from_dict(ImageProperties,meta['img_properties'])
     meta['analysis'] = Analysis.from_dict(Analysis,meta['analysis'])
     meta['process'] = Process.from_dict(Process,meta['process'])
     return Experiment.from_dict(Experiment,meta)
     
 def init_from_dict(input_dict: dict)-> Experiment:
-    input_dict['img_data'] = ImageProperties.from_dict(ImageProperties,input_dict)
+    input_dict['img_properties'] = ImageProperties.from_dict(ImageProperties,input_dict)
     input_dict['analysis'] = Analysis.from_dict(Analysis,input_dict)
     input_dict['process'] = Process.from_dict(Process,input_dict)
     return Experiment.from_dict(Experiment,input_dict)
-
-def _img_list_src(exp_set: Experiment, img_fold_src: str)-> list[str]:
-    """If not manually specified, return the latest processed images list"""
-    
-    if img_fold_src and img_fold_src == 'Images':
-        return exp_set.processed_images_list
-    
-    if img_fold_src and img_fold_src == 'Images_Registered':
-        return exp_set.register_images_list
-    
-    if img_fold_src and img_fold_src == 'Images_Blured':
-        return exp_set.blur_images_list
-    
-    # If not manually specified, return the latest processed images list
-    if exp_set.process.img_blured:
-        return exp_set.blur_images_list
-    elif exp_set.process.img_registered:
-        return exp_set.register_images_list
-    else:
-        return exp_set.processed_images_list
 
 
 if __name__ == '__main__':

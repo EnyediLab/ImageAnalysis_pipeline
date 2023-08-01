@@ -58,32 +58,10 @@ def _correct_chan_shift(input_data: list)-> None:
 
 def _register_with_first(stackreg: StackReg, exp_set: Experiment, reg_channel: str, img_folder: str)-> None:
     # Load ref image
-    img_ref = load_stack(img_list=exp_set.processed_imagess_list,channel_list=[reg_channel],frame_range=[0])
+    img_ref = load_stack(img_list=exp_set.processed_images_list,channel_list=[reg_channel],frame_range=[0])
     if exp_set.img_properties.n_slices>1: img_ref = np.amax(img_ref,axis=0)
     
-    for f in range(exp_set.img_properties.n_frames):
-        # Load image to register
-        img = load_stack(img_list=exp_set.processed_imagess_list,channel_list=[reg_channel],frame_range=[f])
-        if exp_set.img_properties.n_slices>1: img = np.amax(img,axis=0)
-        # Get the transfo matrix
-        tmats = stackreg.register(ref=img_ref,mov=img)
-        
-        for chan in exp_set.active_channel_list:
-            # Load image to transform
-            img = load_stack(img_list=exp_set.processed_images_list,channel_list=[chan],frame_range=[f])
-            for z in range(exp_set.img_properties.n_slices):
-                # Apply transfo
-                if exp_set.img_properties.n_slices==1: reg_img = stackreg.transform(mov=img,tmat=tmats)
-                else: reg_img = stackreg.transform(mov=img[z,...],tmat=tmats)
-                # Save
-                reg_img[reg_img<0] = 0
-                imwrite(join(sep,img_folder+sep,chan+'_f%04d'%(f+1)+'_z%04d.tif'%(z+1)),reg_img.astype(np.uint16))
-
-def _register_with_mean(stackreg: StackReg, exp_set: Experiment, reg_channel: str, img_folder: str)-> None:
-    # Load ref image
-    if exp_set.img_properties.n_slices==1: img_ref = np.mean(load_stack(img_list=exp_set.processed_images_list,channel_list=[reg_channel],frame_range=range(exp_set.img_properties.n_frames)),axis=0)
-    else: img_ref = np.mean(np.amax(load_stack(img_list=exp_set.processed_images_list,channel_list=[reg_channel],frame_range=range(exp_set.img_properties.n_frames)),axis=1),axis=0)
-
+    serie = int(exp_set.exp_path.split(sep)[-1].split('_')[-1][1:])
     for f in range(exp_set.img_properties.n_frames):
         # Load image to register
         img = load_stack(img_list=exp_set.processed_images_list,channel_list=[reg_channel],frame_range=[f])
@@ -100,7 +78,31 @@ def _register_with_mean(stackreg: StackReg, exp_set: Experiment, reg_channel: st
                 else: reg_img = stackreg.transform(mov=img[z,...],tmat=tmats)
                 # Save
                 reg_img[reg_img<0] = 0
-                imwrite(join(sep,img_folder+sep,chan+'_f%04d'%(f+1)+'_z%04d.tif'%(z+1)),reg_img.astype(np.uint16))
+                imwrite(join(sep,img_folder+sep,chan+f"_s{serie:02d}"+'_f%04d'%(f+1)+'_z%04d.tif'%(z+1)),reg_img.astype(np.uint16))
+
+def _register_with_mean(stackreg: StackReg, exp_set: Experiment, reg_channel: str, img_folder: str)-> None:
+    # Load ref image
+    if exp_set.img_properties.n_slices==1: img_ref = np.mean(load_stack(img_list=exp_set.processed_images_list,channel_list=[reg_channel],frame_range=range(exp_set.img_properties.n_frames)),axis=0)
+    else: img_ref = np.mean(np.amax(load_stack(img_list=exp_set.processed_images_list,channel_list=[reg_channel],frame_range=range(exp_set.img_properties.n_frames)),axis=1),axis=0)
+
+    serie = int(exp_set.exp_path.split(sep)[-1].split('_')[-1][1:])
+    for f in range(exp_set.img_properties.n_frames):
+        # Load image to register
+        img = load_stack(img_list=exp_set.processed_images_list,channel_list=[reg_channel],frame_range=[f])
+        if exp_set.img_properties.n_slices>1: img = np.amax(img,axis=0)
+        # Get the transfo matrix
+        tmats = stackreg.register(ref=img_ref,mov=img)
+        
+        for chan in exp_set.active_channel_list:
+            # Load image to transform
+            img = load_stack(img_list=exp_set.processed_images_list,channel_list=[chan],frame_range=[f])
+            for z in range(exp_set.img_properties.n_slices):
+                # Apply transfo
+                if exp_set.img_properties.n_slices==1: reg_img = stackreg.transform(mov=img,tmat=tmats)
+                else: reg_img = stackreg.transform(mov=img[z,...],tmat=tmats)
+                # Save
+                reg_img[reg_img<0] = 0
+                imwrite(join(sep,img_folder+sep,chan+f"_s{serie:02d}"+'_f%04d'%(f+1)+'_z%04d.tif'%(z+1)),reg_img.astype(np.uint16))
 
 def _register_with_previous(stackreg: StackReg, exp_set: Experiment, reg_channel: str, img_folder: str)-> None:
     for f in range(1,exp_set.img_properties.n_frames):
@@ -111,12 +113,14 @@ def _register_with_previous(stackreg: StackReg, exp_set: Experiment, reg_channel
         else:
             img_ref = load_stack(img_list=exp_set.register_images_list,channel_list=[reg_channel],frame_range=[f-1])
             if exp_set.img_properties.n_slices>1: img_ref = np.amax(img_ref,axis=0)
+        
         # Load image to register
         img = load_stack(img_list=exp_set.processed_images_list,channel_list=[reg_channel],frame_range=[f])
         if exp_set.img_properties.n_slices>1: img = np.amax(img,axis=0)
+        
         # Get the transfo matrix
+        serie = int(exp_set.exp_path.split(sep)[-1].split('_')[-1][1:])
         tmats = stackreg.register(ref=img_ref,mov=img)
-        print(exp_set.active_channel_list)
         for chan in exp_set.active_channel_list:
             # Load image to transform
             img = load_stack(img_list=exp_set.processed_images_list,channel_list=[chan],frame_range=[f])
@@ -124,14 +128,14 @@ def _register_with_previous(stackreg: StackReg, exp_set: Experiment, reg_channel
             for z in range(exp_set.img_properties.n_slices):
                 # Copy the first image to the reg_folder
                 if f==1:
-                    if exp_set.img_properties.n_slices==1: imwrite(join(sep,img_folder+sep,chan+'_f%04d'%(1)+'_z%04d.tif'%(z+1)),fst_img.astype(np.uint16))
-                    else: imwrite(join(sep,img_folder+sep,chan+'_f%04d'%(1)+'_z%04d.tif'%(z+1)),fst_img[z,...].astype(np.uint16))
+                    if exp_set.img_properties.n_slices==1: imwrite(join(sep,img_folder+sep,chan+f"_s{serie:02d}"+'_f%04d'%(1)+'_z%04d.tif'%(z+1)),fst_img.astype(np.uint16))
+                    else: imwrite(join(sep,img_folder+sep,chan+f"_s{serie:02d}"+'_f%04d'%(1)+'_z%04d.tif'%(z+1)),fst_img[z,...].astype(np.uint16))
                 # Apply transfo
                 if exp_set.img_properties.n_slices==1: reg_img = stackreg.transform(mov=img,tmat=tmats)
                 else: reg_img = stackreg.transform(mov=img[z,...],tmat=tmats)
                 # Save
                 reg_img[reg_img<0] = 0
-                imwrite(join(sep,img_folder+sep,chan+'_f%04d'%(f+1)+'_z%04d.tif'%(z+1)),reg_img.astype(np.uint16))
+                imwrite(join(sep,img_folder+sep,chan+f"_s{serie:02d}"+'_f%04d'%(f+1)+'_z%04d.tif'%(z+1)),reg_img.astype(np.uint16))
 
 # # # # # # # # main functions # # # # # # # # # 
 def channel_shift_register(exp_set_list: list[Experiment], reg_mtd: str, reg_channel: str, chan_shift_overwrite: bool=False)-> list[Experiment]:

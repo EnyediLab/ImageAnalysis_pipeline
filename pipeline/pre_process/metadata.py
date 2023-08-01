@@ -32,7 +32,7 @@ def _calculate_X_pixmicron(x_resolution: float, img_width: int) -> float:
     width_micron = round(img_width/x_resolution,ndigits=3)
     return round(width_micron/img_width,ndigits=3)
 
-def get_ND2_meta(img_path)-> dict: 
+def get_ND2_meta(img_path: str)-> dict: 
     # Get ND2 img metadata
     nd_obj = ND2Reader(img_path)
     
@@ -59,70 +59,70 @@ def _calculate_interval_sec(timesteps: list, n_frames: int, n_series: int, n_sli
     ts = np.round(np.diff(timesteps[::n_series*n_slices]/1000).mean())
     return int(ts)
 
-def uniformize_meta(meta: dict) -> dict:
+def uniformize_meta(meta_dict: dict) -> dict:
     # Uniformize both nd2 and tif meta
     uni_meta = {}
     new_keys = ['img_width','img_length','n_frames','full_n_channels','n_slices','n_series','pixel_microns','axes','interval_sec','file_type']
-    if meta['file_type']=='.nd2':
+    if meta_dict['file_type']=='.nd2':
         old_keys = ['x','y','t','c','z','v','pixel_microns','axes','missing','file_type']
-    elif meta['file_type']=='.tif':
+    elif meta_dict['file_type']=='.tif':
         old_keys = ['ImageWidth','ImageLength','frames','channels','slices','n_series','missing','axes','finterval','file_type']
     
     for new_key,old_key in zip(new_keys,old_keys):
         if new_key=='pixel_microns' and old_key=='missing':
-            uni_meta[new_key] = _calculate_X_pixmicron(meta['XResolution'],meta['ImageWidth'])
+            uni_meta[new_key] = _calculate_X_pixmicron(meta_dict['XResolution'],meta_dict['ImageWidth'])
         
         elif new_key=='interval_sec' and old_key=='missing':
-            uni_meta[new_key] = _calculate_interval_sec(meta['timesteps'],meta['t'],meta['v'],meta['z'])
+            uni_meta[new_key] = _calculate_interval_sec(meta_dict['timesteps'],meta_dict['t'],meta_dict['v'],meta_dict['z'])
         
-        else: uni_meta[new_key] = meta[old_key]
+        else: uni_meta[new_key] = meta_dict[old_key]
     
     uni_meta['pixel_microns'] = round(uni_meta['pixel_microns'],ndigits=3)
     uni_meta['interval_sec'] = int(round(uni_meta['interval_sec']))
     return uni_meta
 
-def _create_exp_folder(meta: dict) -> dict:
-    meta['exp_path_list'] = []
-    for serie in range(meta['n_series']):
+def _create_exp_folder(meta_dict: dict) -> dict:
+    meta_dict['exp_path_list'] = []
+    for serie in range(meta_dict['n_series']):
         # Create subfolder in parent folder to save the image sequence with a serie's tag
-        path_split = meta['img_path'].split(sep)
+        path_split = meta_dict['img_path'].split(sep)
         path_split[-1] = path_split[-1].split('.')[0]+f"_s{serie+1}"
         exp_path =  sep.join(path_split)
         if not isdir(exp_path):
             mkdir(exp_path)
-        meta['exp_path_list'].append(exp_path)
+        meta_dict['exp_path_list'].append(exp_path)
         # Get tags
-        meta['level_1_tag'] = path_split[-3]
-        meta['level_0_tag'] = path_split[-2]
-    return meta
+        meta_dict['level_1_tag'] = path_split[-3]
+        meta_dict['level_0_tag'] = path_split[-2]
+    return meta_dict
 
 #  Main function
-def get_metadata(img_path: str,active_channel_list: list,full_channel_list:list=None)-> dict:
+def get_metadata(img_path: str, active_channel_list: list, full_channel_list: list=None)-> dict:
     """Gather metadata from all image files (.nd2 and/or .tif) and is attributed to its own experiment folder"""
     if img_path.endswith('.nd2'):
-        meta = get_ND2_meta(img_path)
-        meta['file_type'] = '.nd2'
+        meta_dict = get_ND2_meta(img_path)
+        meta_dict['file_type'] = '.nd2'
     elif img_path.endswith(('.tif','.tiff')):
-        meta = get_tif_meta(img_path)
-        meta['file_type'] = '.tif'
+        meta_dict = get_tif_meta(img_path)
+        meta_dict['file_type'] = '.tif'
     else:
         raise ValueError('Image format not supported, please use .nd2 or .tif/.tiff')
-    meta = uniformize_meta(meta)
+    meta_dict = uniformize_meta(meta_dict)
     
-    meta['img_path'] = img_path
+    meta_dict['img_path'] = img_path
     
-    meta = _create_exp_folder(meta)
+    meta_dict = _create_exp_folder(meta_dict)
     
     # Add channel data
-    meta['active_channel_list'] = active_channel_list
+    meta_dict['active_channel_list'] = active_channel_list
     if full_channel_list:
-        meta['full_channel_list'] = full_channel_list
+        meta_dict['full_channel_list'] = full_channel_list
     else:
-        meta['full_channel_list'] = active_channel_list
+        meta_dict['full_channel_list'] = active_channel_list
     
-    if len(active_channel_list)<meta['full_n_channels']:
+    if len(active_channel_list)>meta_dict['full_n_channels']:
         raise ValueError('The image contains more channels than the full_channel_list provided, pleasee add the right number of channels')
-    return meta
+    return meta_dict
 
 
     

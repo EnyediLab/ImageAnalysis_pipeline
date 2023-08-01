@@ -1,6 +1,5 @@
 from __future__ import annotations
-from os.path import join, exists
-from os import sep, mkdir,getcwd
+from os import sep,getcwd
 import sys
 parent_dir = getcwd()
 sys.path.append(parent_dir)
@@ -19,8 +18,8 @@ def load_stack(img_list: list[str], channel_list: Iterable[str], frame_range: It
             f_lst = []
             for img in img_list:
                 # To be able to load either _f3digit.tif or _f4digit.tif
-                ndigit = len(img.split(sep)[-1].split('_')[1][1:])
-                if img.__contains__(f'{chan}_f%0{ndigit}d'%(frame+1)):
+                ndigit = len(img.split(sep)[-1].split('_')[2][1:])
+                if chan in img and img.__contains__(f'_f%0{ndigit}d'%(frame+1)):
                     f_lst.append(imread(img))
             chan_list.append(f_lst)
         exp_list.append(chan_list)
@@ -49,3 +48,4 @@ def _img_list_src(exp_set: Experiment, img_fold_src: str)-> list[str]:
         return exp_set.register_images_list
     else:
         return exp_set.processed_images_list
+
