@@ -11,7 +11,7 @@ import numpy as np
 from tifffile import imread,imsave
 from concurrent.futures import ThreadPoolExecutor
 from ImageAnalysis_pipeline.pipeline.classes import Experiment
-from ImageAnalysis_pipeline.pipeline.loading_data import _img_list_src
+from ImageAnalysis_pipeline.pipeline.loading_data import _img_list_src, _is_processed
 
 def _determine_threshold(img: np.ndarray, manual_threshold: float=None)-> float:
     # Set the threshold's value. Either as input or automatically if thres==None
@@ -27,7 +27,7 @@ def _clean_mask(mask: np.ndarray)-> np.ndarray:
 def _apply_threshold(img_data: list)-> float:
     img_path,manual_threshold = img_data
     img = imread(img_path)
-    savedir = img_path.replace("Images","Masks_SimpleThreshold").replace('_Registered','').replace('_Blured','')
+    savedir = img_path.replace("Images","Masks_Threshold").replace('_Registered','').replace('_Blured','')
     
     threshold_value = _determine_threshold(img,manual_threshold)
     
@@ -39,21 +39,21 @@ def _apply_threshold(img_data: list)-> float:
     return threshold_value
 
 # # # # # # # # main functions # # # # # # # # # 
-def simple_threshold(exp_set_list: list[Experiment], simple_thresold_overwrite: bool=False, manual_threshold: int=None, img_fold_src: str=None)-> list[Experiment]:
+def simple_threshold(exp_set_list: list[Experiment], channel_seg: str, simple_thresold_overwrite: bool=False, manual_threshold: int=None, img_fold_src: str=None)-> list[Experiment]:
     for exp_set in exp_set_list:
         # Check if exist
-        if exp_set.process.simple_threshold and not simple_thresold_overwrite:
+        if _is_processed(exp_set.process.simple_threshold,channel_seg,simple_thresold_overwrite):
                 # Log
             print(f"--> Simple threshold images already exist with {exp_set.process.simple_threshold}")
             continue
         
         # If not, Generate list of image source
         img_list_src = _img_list_src(exp_set, img_fold_src)
-        img_data = [(img_path,manual_threshold) for img_path in img_list_src]
+        img_data = [(img_path,manual_threshold) for img_path in img_list_src if channel_seg in img_path]
         
         # Create blur dir and apply blur
-        if not isdir(join(sep,exp_set.exp_path+sep,'Masks_SimpleThreshold')):
-            mkdir(join(sep,exp_set.exp_path+sep,'Masks_SimpleThreshold'))
+        if not isdir(join(sep,exp_set.exp_path+sep,'Masks_Threshold')):
+            mkdir(join(sep,exp_set.exp_path+sep,'Masks_Threshold'))
         
         print(f"--> Thresholding images in {exp_set.exp_path}")
         # Determine threshold value
@@ -72,7 +72,7 @@ def simple_threshold(exp_set_list: list[Experiment], simple_thresold_overwrite: 
         print(f"\t---> Threshold created with: {log_value} threshold of {threshold_value}")
 
         # Save settings
-        exp_set.process.simple_threshold = [f"{log_value} threshold={threshold_value}"]
+        exp_set.process.threshold_seg = {'channel_seg':channel_seg,'method':log_value,'threshold':threshold_value}
         exp_set.save_as_json()    
     return exp_set_list  
 

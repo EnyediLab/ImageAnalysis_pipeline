@@ -49,3 +49,28 @@ def _img_list_src(exp_set: Experiment, img_fold_src: str)-> list[str]:
     else:
         return exp_set.processed_images_list
 
+def _mask_list_src(exp_set: Experiment, mask_fold_src: str)-> list[str]:
+    """If not manually specified, return the latest processed images list"""
+    
+    if mask_fold_src and mask_fold_src == 'Masks_Threshold':
+        return exp_set.mask_threshold_list
+    
+    if mask_fold_src and mask_fold_src == 'Masks_Cellpose':
+        return exp_set.mask_cellpose_list
+    
+    
+    # If not manually specified, return the latest processed images list
+    if exp_set.process.cellpose_seg:
+        return exp_set.mask_cellpose_list
+    else:
+        return exp_set.mask_threshold_list
+
+
+def _is_processed(process: dict, channel_seg: str, overwrite: bool)-> bool:
+    if overwrite:
+        return False
+    if not process:
+        return False
+    if process['channel_seg'] != channel_seg:
+        return False
+    return True

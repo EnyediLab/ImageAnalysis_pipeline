@@ -8,12 +8,13 @@ from time import time
 from ImageAnalysis_pipeline.pipeline.pre_process.main_pre_process import pre_process_all
 from ImageAnalysis_pipeline.pipeline.segmentation.segmentation import simple_threshold
 from ImageAnalysis_pipeline.pipeline.segmentation.cp_segmentation import cellpose_segmentation
+from ImageAnalysis_pipeline.pipeline.tracking.iou_tracking import iou_tracking
 if __name__ == "__main__":
 
     t1 = time()
-    preprocess_parameters = {'parent_folder': '/Users/benhome/BioTool/GitHub/cp_dev/Test_images/Run2',
+    preprocess_parameters = {'parent_folder': '/Users/benhome/BioTool/GitHub/cp_dev/Test_images/Run4',
                              'active_channel_list': ['GFP','RFP'],
-                             'full_channel_list': None, 
+                             'full_channel_list':['BFP','GFP','RFP','Cy5'], 
                              'file_type': '.nd2',
                              'img_seq_overwrite': False,
                              'bg_sub': True,'sigma': 0.0,'size': 7,'bg_sub_overwrite': False,
@@ -24,13 +25,16 @@ if __name__ == "__main__":
     segmentation_parameters = {'manual_threshold': None, 'simple_thresold_overwrite': True, 'img_fold_src': None}
     
     cp_segmentation_parameters = {'channel_seg':'RFP','model_type':'cyto2','nuclear_marker':None,
-                                  'cellpose_overwrite':True,'stitch':None,'img_fold_src':'Images_Registered',
-                                  'diameter':60.,'do_3D':True,'flow_threshold':0.4,'cellprob_threshold':0.0}
+                                  'cellpose_overwrite':False,'stitch':None,'img_fold_src':'Images_Registered',
+                                  'diameter':60.,'flow_threshold':0.4,'cellprob_threshold':0.0}
     
+    iou_tracking_parameters = {'channel_seg':'RFP','mask_fold_src':'Masks_Cellpose','stitch_thres_percent':0.75,
+                               'shape_thres_percent':0.1,'iou_track_overwrite':True, 'n_mask': 10}
     
     exp_set_list = pre_process_all(**preprocess_parameters)
     # exp_set_list = simple_threshold(exp_set_list,**segmentation_parameters)
     exp_set_list = cellpose_segmentation(exp_set_list,**cp_segmentation_parameters)
+    exp_set_list = iou_tracking(exp_set_list,**iou_tracking_parameters)
     
     t2 = time()
     if t2-t1<60: print(f"Time to process: {round(t2-t1,ndigits=3)} sec\n")

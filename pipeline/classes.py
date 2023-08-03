@@ -18,8 +18,9 @@ class Process(LoadClass):
     channel_shift_corrected: list = field(default_factory=list)
     img_registered: list = field(default_factory=list)
     img_blured: list = field(default_factory=list)
-    simple_threshold: list = field(default_factory=list)
-    cellpose_segmentation: dict = field(default_factory=dict)
+    threshold_seg: dict = field(default_factory=dict)
+    cellpose_seg: dict = field(default_factory=dict)
+    iou_tracking: dict = field(default_factory=dict)
 
 @dataclass
 class ImageProperties(LoadClass):
@@ -49,7 +50,7 @@ class Experiment(LoadClass):
     analysis: Analysis = field(default_factory=Analysis)
     process: Process = field(default_factory=Process)
 
-    @cached_property
+    @property
     def processed_images_list(self)-> list:
         im_folder = join(sep,self.exp_path+sep,'Images')
         return [join(sep,im_folder+sep,f) for f in sorted(listdir(im_folder)) if f.endswith('.tif')]
@@ -64,6 +65,16 @@ class Experiment(LoadClass):
         im_folder = join(sep,self.exp_path+sep,'Images_Blured')
         return [join(sep,im_folder+sep,f) for f in sorted(listdir(im_folder)) if f.endswith('.tif')]
 
+    @property
+    def mask_threshold_list(self)-> list:
+        mask_folder = join(sep,self.exp_path+sep,'Masks_Threshold')
+        return [join(sep,mask_folder+sep,f) for f in sorted(listdir(mask_folder)) if f.endswith('.tif')]
+    
+    @property
+    def mask_cellpose_list(self)-> list:
+        mask_folder = join(sep,self.exp_path+sep,'Masks_Cellpose')
+        return [join(sep,mask_folder+sep,f) for f in sorted(listdir(mask_folder)) if f.endswith('.tif')]
+    
     def save_as_json(self)->None:
         main_dict = self.__dict__.copy()
         main_dict['img_properties'] = self.img_properties.__dict__

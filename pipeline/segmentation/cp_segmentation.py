@@ -1,5 +1,5 @@
 from __future__ import annotations
-from os import getcwd,sep,mkdir
+from os import getcwd, sep, mkdir
 import sys
 
 parent_dir = getcwd()
@@ -8,20 +8,16 @@ sys.path.append(parent_dir)
 from cellpose import models, core
 from cellpose.io import logger_setup
 from os.path import join, isdir
-import cv2
-from skimage.morphology import remove_small_objects,remove_small_holes
-import numpy as np
 from tifffile import imsave
-from IPython.display import clear_output
-from concurrent.futures import ThreadPoolExecutor,ProcessPoolExecutor
-from ImageAnalysis_pipeline.pipeline.classes import Experiment,ImageProperties
-from ImageAnalysis_pipeline.pipeline.loading_data import load_stack,_img_list_src
+from concurrent.futures import ProcessPoolExecutor
+from ImageAnalysis_pipeline.pipeline.classes import Experiment
+from ImageAnalysis_pipeline.pipeline.loading_data import load_stack, _img_list_src, _is_processed
 
 def _apply_cellpose_segmentation(img_data: list)-> None:
-    img_list,stack_channel_list,frame,model,cellpose_eval = img_data
-    img = load_stack(img_list,stack_channel_list,[frame])
+    img_list,frame,cellpose_channels,model,cellpose_eval = img_data
+    img = load_stack(img_list,cellpose_channels,[frame])
+    print(f"---> Processing frame {frame}")
     img_path = img_list[0].replace("Images","Masks_Cellpose").replace('_Registered','').replace('_Blured','')
-    
     # Run Cellpose. Returns 4 variables
     masks_cp, __, __, = model.eval(img,**cellpose_eval)
     
@@ -70,7 +66,7 @@ def _setup_cellpose_model(model_type: str='cyto2', **kwargs)-> dict:
     
     return model_settings
 
-def _setup_cellpose_eval(img_properties: ImageProperties, nuclear_marker: str=None, stich: float=None, **kwargs)-> dict:
+def _setup_cellpose_eval(n_slices: int, nuclear_marker: str=None, stich: float=None, **kwargs)-> dict:
     # Default kwargs for cellpose eval
     cellpose_eval = {'batch_size':8,'channels':[0,0],'channel_axis':None,'z_axis':None,
             'invert':False,'normalize':True,'diameter':60.,'do_3D':False,'anisotropy':None,
@@ -81,7 +77,7 @@ def _setup_cellpose_eval(img_properties: ImageProperties, nuclear_marker: str=No
     if nuclear_marker:
         cellpose_eval['channels'] = [1,2]
     
-    if img_properties.n_slices>1:
+    if n_slices>1:
         cellpose_eval['z_axis'] = 0
         cellpose_eval['do_3D'] = True
         cellpose_eval['anisotropy'] = 2.0
@@ -103,7 +99,16 @@ def _setup_cellpose_eval(img_properties: ImageProperties, nuclear_marker: str=No
                 raise ValueError(" ".join(f"Cellpose run setting '{k}' not recognized.",
                                   f"Please choose one of the following: {cellpose_eval.keys()}"))
     return cellpose_eval
+
+def _gen_input_data(exp_set: Experiment, img_fold_src: str, channel_seg: str, *args)-> list:
+    img_list_src = _img_list_src(exp_set,img_fold_src)
+    img_data = []
+    for frame in range(exp_set.img_properties.n_frames):
+        img_list = [img for img in img_list_src if f"_f{frame+1:04d}" in img and channel_seg in img]
         
+        img_data.append([img_list,frame,*args])
+    return img_data
+
 
 # # # # # # # # main functions # # # # # # # # # 
 def cellpose_segmentation(exp_set_list: list[Experiment], channel_seg: str, model_type: str='cyto2', nuclear_marker: str=None,
@@ -111,38 +116,34 @@ def cellpose_segmentation(exp_set_list: list[Experiment], channel_seg: str, mode
     """Function to run cellpose segmentation. See https://github.com/MouseLand/cellpose for more details."""
     for exp_set in exp_set_list:
         # Check if exist
-        if exp_set.process.cellpose_segmentation and not cellpose_overwrite:
+        if _is_processed(exp_set.process.cellpose_seg,channel_seg,cellpose_overwrite):
                 # Log
-            print(f"--> Images have already been segmented with cellpose with {exp_set.process.cellpose_segmentation}")
+            print(f"--> Images from {exp_set.exp_path} have already been segmented with cellpose for {channel_seg} channel.")
             continue
         
         # Else run cellpose
         print(f"--> Segmenting images for the '{channel_seg}' channel of exp. '{exp_set.exp_path}'")
         
+        # Setup model and eval settings
         cellpose_model = _setup_cellpose_model(model_type,**kwargs)
-        cellpose_eval = _setup_cellpose_eval(exp_set.img_properties,nuclear_marker,stitch,**kwargs)
-        cellpose_channels = [channel_seg]
-        if nuclear_marker: cellpose_channels.append(nuclear_marker)
-        
-        # Initialize model and generate input data
+        cellpose_eval = _setup_cellpose_eval(exp_set.img_properties.n_slices,nuclear_marker,stitch,**kwargs)
         logger_setup()
         model = models.CellposeModel(**cellpose_model)
-        img_list_src = _img_list_src(exp_set,img_fold_src)
-        img_data = []
-        for frame in range(exp_set.img_properties.n_frames):
-            img_list = [img for img in img_list_src if f"_f{frame+1:04d}" in img and channel_seg in img]
-            
-            img_data.append([img_list,cellpose_channels,frame,model,cellpose_eval])
+        cellpose_channels = [channel_seg]
+        if nuclear_marker: cellpose_channels.append(nuclear_marker)
         
         # Create blur dir and apply blur
         if not isdir(join(sep,exp_set.exp_path+sep,'Masks_Cellpose')):
             mkdir(join(sep,exp_set.exp_path+sep,'Masks_Cellpose'))
         
-        # Run cellpose
+        # Generate input data
+        img_data = _gen_input_data(exp_set,img_fold_src,channel_seg,cellpose_channels,model,cellpose_eval)
+        
+        # Cellpose
         with ProcessPoolExecutor() as executor:
             executor.map(_apply_cellpose_segmentation,img_data)
         
         # Save settings
-        exp_set.process.cellpose_segmentation = {'model_settings':cellpose_model,'cellpose_eval':cellpose_eval}
+        exp_set.process.cellpose_seg = {'channel_seg':channel_seg,'model_settings':cellpose_model,'cellpose_eval':cellpose_eval}
         exp_set.save_as_json()
     return exp_set_list
