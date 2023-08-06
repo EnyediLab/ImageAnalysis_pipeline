@@ -29,7 +29,7 @@ def load_stack(img_list: list[str], channel_list: Iterable[str], frame_range: It
         stack = np.moveaxis(np.squeeze(np.stack(exp_list)), [0], [-1])
     return stack
 
-def _img_list_src(exp_set: Experiment, img_fold_src: str)-> list[str]:
+def img_list_src(exp_set: Experiment, img_fold_src: str | None)-> list[str]:
     """If not manually specified, return the latest processed images list"""
     
     if img_fold_src and img_fold_src == 'Images':
@@ -49,7 +49,7 @@ def _img_list_src(exp_set: Experiment, img_fold_src: str)-> list[str]:
     else:
         return exp_set.processed_images_list
 
-def _mask_list_src(exp_set: Experiment, mask_fold_src: str)-> list[str]:
+def mask_list_src(exp_set: Experiment, mask_fold_src: str | None)-> list[str]:
     """If not manually specified, return the latest processed images list"""
     
     if mask_fold_src and mask_fold_src == 'Masks_Threshold':
@@ -58,19 +58,22 @@ def _mask_list_src(exp_set: Experiment, mask_fold_src: str)-> list[str]:
     if mask_fold_src and mask_fold_src == 'Masks_Cellpose':
         return exp_set.mask_cellpose_list
     
+    if mask_fold_src and mask_fold_src == 'Masks_IoU_Track':
+        return exp_set.mask_iou_track_list
     
     # If not manually specified, return the latest processed images list
-    if exp_set.process.cellpose_seg:
+    if exp_set.masks.iou_tracking:
+        return exp_set.mask_iou_track_list
+    elif exp_set.masks.cellpose_seg:
         return exp_set.mask_cellpose_list
     else:
         return exp_set.mask_threshold_list
 
-
-def _is_processed(process: dict, channel_seg: str, overwrite: bool)-> bool:
+def is_processed(process: dict, channel_seg: str, overwrite: bool)-> bool:
     if overwrite:
         return False
     if not process:
         return False
-    if process['channel_seg'] != channel_seg:
+    if channel_seg not in process:
         return False
     return True

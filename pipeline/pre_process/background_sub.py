@@ -10,7 +10,7 @@ from tifffile import imread, imwrite
 from smo import SMO
 import numpy as np
 
-def _apply_bg_sub(processed_image: list)-> None:
+def apply_bg_sub(processed_image: list)-> None:
     # Initiate SMO
     proc_img_path,smo = processed_image
     img = imread(proc_img_path)
@@ -24,9 +24,9 @@ def background_sub(exp_set_list: list[Experiment], sigma: float=0.0, size: int=7
     """For each experiment, apply a background substraction on the images and return a list of Settings objects"""
     for exp_set in exp_set_list:
         if exp_set.process.background_sub and not bg_sub_overwrite:
-            print(f"--> Background substraction was already apply on {exp_set.exp_path}")
+            print(f" --> Background substraction was already applied to the images with {exp_set.process.background_sub}")
             continue
-        print(f"--> Applying background substraction on {exp_set.exp_path}, with sigma={sigma} and size={size}")
+        print(f" --> Applying background substraction to the images with sigma={sigma} and size={size}")
         
         # Add smo_object to img_path
         processed_images_list = exp_set.processed_images_list.copy()
@@ -34,7 +34,7 @@ def background_sub(exp_set_list: list[Experiment], sigma: float=0.0, size: int=7
         processed_images_list = [(img_path,smo) for img_path in processed_images_list]
         
         with ProcessPoolExecutor() as executor:
-            executor.map(_apply_bg_sub,processed_images_list)
+            executor.map(apply_bg_sub,processed_images_list)
             
         exp_set.process.background_sub = (f"sigma={sigma}",f"size={size}")
         exp_set.save_as_json()

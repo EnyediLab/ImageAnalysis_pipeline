@@ -9,7 +9,7 @@ import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning) 
 from os.path import join, isdir
 from ImageAnalysis_pipeline.pipeline.classes import Experiment
-from ImageAnalysis_pipeline.pipeline.loading_data import _is_processed, _mask_list_src, load_stack
+from ImageAnalysis_pipeline.pipeline.loading_data import is_processed, mask_list_src, load_stack
 from ImageAnalysis_pipeline.pipeline.mask_transformation.mask_morph import morph_missing_mask, morph_missing_mask_para
 from cellpose.utils import stitch3D
 from cellpose.metrics import _intersection_over_union
@@ -95,19 +95,19 @@ def iou_tracking(exp_set_list: list[Experiment], channel_seg: str, mask_fold_src
                  iou_track_overwrite: bool=False, n_mask: int=5)-> list[Experiment]:
     
     for exp_set in exp_set_list:
-        if _is_processed(exp_set.process.iou_tracking,channel_seg,iou_track_overwrite):
-            print(f"--> Exp. {exp_set.exp_path} is already tracked for the '{channel_seg}' channel")
+        if is_processed(exp_set.masks.iou_tracking,channel_seg,iou_track_overwrite):
+            print(f" --> Cells have already been tracked for the '{channel_seg}' channel")
             continue
         
         # Track images
-        print(f"--> Tracking exp. {exp_set.exp_path} for the '{channel_seg}' channel")
+        print(f" --> Tracking cells for the '{channel_seg}' channel")
         
         # Create blur dir and apply blur
         if not isdir(join(sep,exp_set.exp_path+sep,'Masks_IoU_Track')):
             mkdir(join(sep,exp_set.exp_path+sep,'Masks_IoU_Track'))
         
         # Load masks
-        mask_src_list = _mask_list_src(exp_set,mask_fold_src)
+        mask_src_list = mask_list_src(exp_set,mask_fold_src)
         mask_stack = load_stack(mask_src_list,[channel_seg],range(exp_set.img_properties.n_frames))
         
         # Track masks
@@ -131,9 +131,13 @@ def iou_tracking(exp_set_list: list[Experiment], channel_seg: str, mask_fold_src
             mask_path = path.replace('Masks','Masks_IoU_Track').replace('_Cellpose','').replace('_Threshold','')
             imsave(mask_path,mask_stack[i,...].astype('uint16'))
         
-        exp_set.process.iou_tracking = {'channel_seg':channel_seg,'mask_fold_src':mask_fold_src,
-                                        'stitch_thres_percent':stitch_thres_percent,'shape_thres_percent':shape_thres_percent,
-                                        'n_mask':n_mask}
+        # Save settings
+        if exp_set.masks.iou_tracking:
+            exp_set.masks.iou_tracking.update({channel_seg:{'mask_fold_src':mask_fold_src,'stitch_thres_percent':stitch_thres_percent,
+                                        'shape_thres_percent':shape_thres_percent,'n_mask':n_mask}})
+        else: 
+            exp_set.masks.iou_tracking = {channel_seg:{'mask_fold_src':mask_fold_src,'stitch_thres_percent':stitch_thres_percent,
+                                        'shape_thres_percent':shape_thres_percent,'n_mask':n_mask}}
         exp_set.save_as_json()
     return exp_set_list
 

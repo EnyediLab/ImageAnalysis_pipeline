@@ -7,7 +7,7 @@ parent_dir = getcwd()
 sys.path.append(parent_dir)
 
 from ImageAnalysis_pipeline.pipeline.classes import Experiment
-from ImageAnalysis_pipeline.pipeline.loading_data import _img_list_src
+from ImageAnalysis_pipeline.pipeline.loading_data import img_list_src
 from typing import Iterable
 from tifffile import imwrite, imread
 from cv2 import GaussianBlur
@@ -15,7 +15,7 @@ import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 
 
-def _apply_blur(img_data: Iterable)-> None:
+def apply_blur(img_data: Iterable)-> None:
     
     img_path,blur_kernel,blur_sigma = img_data
     img = imread(img_path)
@@ -34,19 +34,19 @@ def blur_img(exp_set_list: list[Experiment], blur_kernel: list[int], blur_sigma:
         # Check if exists
         if exp_set.process.img_blured and not blur_overwrite:
             # Log
-            print(f"--> Images are already blured with {exp_set.process.img_blured}")
+            print(f" --> Images are already blured with {exp_set.process.img_blured}")
             continue
         
         # Log
-        print(f"--> Bluring images using a kernel of {blur_kernel} and sigma of {blur_sigma}")
-        img_list_src = _img_list_src(exp_set, img_fold_src)
-        img_data = [(img_path,blur_kernel,blur_sigma) for img_path in img_list_src]
+        print(f" --> Bluring images using a kernel of {blur_kernel} and sigma of {blur_sigma}")
+        img_list = img_list_src(exp_set, img_fold_src)
+        img_data = [(img_path,blur_kernel,blur_sigma) for img_path in img_list]
         # Create blur dir
         if not isdir(join(sep,exp_set.exp_path+sep,'Images_Blured')):
             mkdir(join(sep,exp_set.exp_path+sep,'Images_Blured'))
         
         with ThreadPoolExecutor() as executor:
-            executor.map(_apply_blur,img_data)
+            executor.map(apply_blur,img_data)
             
         # Save settings
         exp_set.process.img_blured = [f"blur_kernel={blur_kernel}",f"blur_sigma={blur_sigma}"]

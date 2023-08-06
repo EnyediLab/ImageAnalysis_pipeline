@@ -11,7 +11,7 @@ import numpy as np
 from tifffile import imread,imsave
 from concurrent.futures import ThreadPoolExecutor
 from ImageAnalysis_pipeline.pipeline.classes import Experiment
-from ImageAnalysis_pipeline.pipeline.loading_data import _img_list_src, _is_processed
+from ImageAnalysis_pipeline.pipeline.loading_data import img_list_src, is_processed
 
 def _determine_threshold(img: np.ndarray, manual_threshold: float=None)-> float:
     # Set the threshold's value. Either as input or automatically if thres==None
@@ -42,20 +42,20 @@ def _apply_threshold(img_data: list)-> float:
 def simple_threshold(exp_set_list: list[Experiment], channel_seg: str, simple_thresold_overwrite: bool=False, manual_threshold: int=None, img_fold_src: str=None)-> list[Experiment]:
     for exp_set in exp_set_list:
         # Check if exist
-        if _is_processed(exp_set.process.simple_threshold,channel_seg,simple_thresold_overwrite):
+        if is_processed(exp_set.masks.simple_threshold,channel_seg,simple_thresold_overwrite):
                 # Log
-            print(f"--> Simple threshold images already exist with {exp_set.process.simple_threshold}")
+            print(f" --> Object has already been segmented with {exp_set.process.simple_threshold}")
             continue
         
         # If not, Generate list of image source
-        img_list_src = _img_list_src(exp_set, img_fold_src)
-        img_data = [(img_path,manual_threshold) for img_path in img_list_src if channel_seg in img_path]
+        img_path_list = img_list_src(exp_set, img_fold_src)
+        img_data = [(img_path,manual_threshold) for img_path in img_path_list if channel_seg in img_path]
         
         # Create blur dir and apply blur
         if not isdir(join(sep,exp_set.exp_path+sep,'Masks_Threshold')):
             mkdir(join(sep,exp_set.exp_path+sep,'Masks_Threshold'))
         
-        print(f"--> Thresholding images in {exp_set.exp_path}")
+        print(f" --> Segmenting object...")
         # Determine threshold value
         threshold_value_list = []
         with ThreadPoolExecutor() as executor:
@@ -72,7 +72,10 @@ def simple_threshold(exp_set_list: list[Experiment], channel_seg: str, simple_th
         print(f"\t---> Threshold created with: {log_value} threshold of {threshold_value}")
 
         # Save settings
-        exp_set.process.threshold_seg = {'channel_seg':channel_seg,'method':log_value,'threshold':threshold_value}
+        if exp_set.masks.threshold_seg:
+            exp_set.masks.threshold_seg.update({channel_seg:{'method':log_value,'threshold':threshold_value}})
+        else:
+            exp_set.masks.threshold_seg = {channel_seg:{'method':log_value,'threshold':threshold_value}}
         exp_set.save_as_json()    
     return exp_set_list  
 

@@ -14,7 +14,7 @@ from ImageAnalysis_pipeline.pipeline.loading_data import load_stack
 from typing import Iterable
 
 
-def _chan_shift_file_name(file_list: list, channel_list: list, reg_channel: str)-> list:
+def chan_shift_file_name(file_list: list, channel_list: list, reg_channel: str)-> list:
     """Return a list of tuples of file names to be registered. 
     The first element of the tuple is the reference image and the second is the image to be registered.
     """
@@ -29,7 +29,7 @@ def _chan_shift_file_name(file_list: list, channel_list: list, reg_channel: str)
             tuples_list.append((ref_list[i],chan_list[i]))
     return tuples_list
 
-def _reg_mtd(reg_mtd: str)-> StackReg:
+def select_reg_mtd(reg_mtd: str)-> StackReg:
     mtd_list = ['translation','rigid_body','scaled_rotation','affine','bilinear']
     if reg_mtd not in mtd_list:
         raise ValueError(f"{reg_mtd} is not valid. Please only put {mtd_list}")
@@ -41,7 +41,7 @@ def _reg_mtd(reg_mtd: str)-> StackReg:
     elif reg_mtd=='bilinear':        stackreg = StackReg(StackReg.BILINEAR)
     return stackreg
 
-def _correct_chan_shift(input_data: list)-> None:
+def correct_chan_shift(input_data: list)-> None:
     # Unpack input data
     stackreg,file_list = input_data
     
@@ -56,7 +56,7 @@ def _correct_chan_shift(input_data: list)-> None:
     reg_img[reg_img<0] = 0
     imwrite(img_file,reg_img.astype(np.uint16))
 
-def _register_with_first(stackreg: StackReg, exp_set: Experiment, reg_channel: str, img_folder: str)-> None:
+def register_with_first(stackreg: StackReg, exp_set: Experiment, reg_channel: str, img_folder: str)-> None:
     # Load ref image
     img_ref = load_stack(img_list=exp_set.processed_images_list,channel_list=[reg_channel],frame_range=[0])
     if exp_set.img_properties.n_slices>1: img_ref = np.amax(img_ref,axis=0)
@@ -80,7 +80,7 @@ def _register_with_first(stackreg: StackReg, exp_set: Experiment, reg_channel: s
                 reg_img[reg_img<0] = 0
                 imwrite(join(sep,img_folder+sep,chan+f"_s{serie:02d}"+'_f%04d'%(f+1)+'_z%04d.tif'%(z+1)),reg_img.astype(np.uint16))
 
-def _register_with_mean(stackreg: StackReg, exp_set: Experiment, reg_channel: str, img_folder: str)-> None:
+def register_with_mean(stackreg: StackReg, exp_set: Experiment, reg_channel: str, img_folder: str)-> None:
     # Load ref image
     if exp_set.img_properties.n_slices==1: img_ref = np.mean(load_stack(img_list=exp_set.processed_images_list,channel_list=[reg_channel],frame_range=range(exp_set.img_properties.n_frames)),axis=0)
     else: img_ref = np.mean(np.amax(load_stack(img_list=exp_set.processed_images_list,channel_list=[reg_channel],frame_range=range(exp_set.img_properties.n_frames)),axis=1),axis=0)
@@ -104,7 +104,7 @@ def _register_with_mean(stackreg: StackReg, exp_set: Experiment, reg_channel: st
                 reg_img[reg_img<0] = 0
                 imwrite(join(sep,img_folder+sep,chan+f"_s{serie:02d}"+'_f%04d'%(f+1)+'_z%04d.tif'%(z+1)),reg_img.astype(np.uint16))
 
-def _register_with_previous(stackreg: StackReg, exp_set: Experiment, reg_channel: str, img_folder: str)-> None:
+def register_with_previous(stackreg: StackReg, exp_set: Experiment, reg_channel: str, img_folder: str)-> None:
     for f in range(1,exp_set.img_properties.n_frames):
         # Load ref image
         if f==1:
@@ -141,17 +141,17 @@ def _register_with_previous(stackreg: StackReg, exp_set: Experiment, reg_channel
 def channel_shift_register(exp_set_list: list[Experiment], reg_mtd: str, reg_channel: str, chan_shift_overwrite: bool=False)-> list[Experiment]:
     for exp_set in exp_set_list:
         if exp_set.process.channel_shift_corrected and not chan_shift_overwrite:
-            print(f"--> Channel shift was already apply on {exp_set.exp_path}")
+            print(f" --> Channel shift was already applied on the images with {exp_set.process.channel_shift_corrected}")
             continue
-        stackreg = _reg_mtd(reg_mtd)
-        print(f"--> Applying channel shift correction on {exp_set.exp_path}")
+        stackreg = select_reg_mtd(reg_mtd)
+        print(f" --> Applying channel shift correction on the images with '{reg_channel}' as reference and {reg_mtd} methods")
         
         # Generate input data for parallel processing
-        img_group_list = _chan_shift_file_name(exp_set.processed_images_list,exp_set.active_channel_list,reg_channel)
+        img_group_list = chan_shift_file_name(exp_set.processed_images_list,exp_set.active_channel_list,reg_channel)
         input_data = [(stackreg,img_list) for img_list in img_group_list]
                 
         with ProcessPoolExecutor() as executor:
-            executor.map(_correct_chan_shift,input_data)
+            executor.map(correct_chan_shift,input_data)
         # Save settings
         exp_set.process.channel_shift_corrected = [f"reg_channel={reg_channel}",f"reg_mtd={reg_mtd}"]
         exp_set.save_as_json()
@@ -164,19 +164,17 @@ def register_img(exp_set_list: list[Experiment], reg_channel: str, reg_mtd: str,
             mkdir(img_folder)
         
         if exp_set.process.img_registered and not reg_overwrite:
-            print(f"--> Registration was already apply on {exp_set.exp_path}")
+            print(f" --> Registration was already applied to the images with {exp_set.process.img_registered}")
             continue
         
-        stackreg = _reg_mtd(reg_mtd)
+        stackreg = select_reg_mtd(reg_mtd)
+        print(f" --> Registering images with '{reg_ref}_image' reference and {reg_mtd} method")
         if reg_ref=='first':
-            print(f"--> Registering {exp_set.exp_path} with first image and {reg_mtd} method")
-            _register_with_first(stackreg,exp_set,reg_channel,img_folder)
+            register_with_first(stackreg,exp_set,reg_channel,img_folder)
         elif reg_ref=='previous':
-            print(f"--> Registering {exp_set.exp_path} with previous image and {reg_mtd} method")
-            _register_with_previous(stackreg,exp_set,reg_channel,img_folder)
+            register_with_previous(stackreg,exp_set,reg_channel,img_folder)
         elif reg_ref=='mean':
-            print(f"--> Registering {exp_set.exp_path} with mean image and {reg_mtd} method")
-            _register_with_mean(stackreg,exp_set,reg_channel,img_folder)
+            register_with_mean(stackreg,exp_set,reg_channel,img_folder)
         exp_set.process.img_registered = [f"reg_channel={reg_channel}",f"reg_mtd={reg_mtd}",f"reg_ref={reg_ref}"]
         exp_set.save_as_json()
     return exp_set_list

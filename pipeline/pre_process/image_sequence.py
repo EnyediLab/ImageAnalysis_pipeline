@@ -14,7 +14,7 @@ from concurrent.futures import ProcessPoolExecutor,ThreadPoolExecutor
 from ImageAnalysis_pipeline.pipeline.pre_process.metadata import get_metadata
 
  
-def _name_img_list(meta_dict: dict)-> list[str]:
+def name_img_list(meta_dict: dict)-> list[str]:
     """Return a list of generated image names based on the metadata of the experiment"""
     # Create a name for each image
     img_name_list = []
@@ -25,7 +25,7 @@ def _name_img_list(meta_dict: dict)-> list[str]:
                     img_name_list.append(chan+'_s%02d'%(serie+1)+'_f%04d'%(t+1)+'_z%04d'%(z+1))
     return img_name_list
 
-def _write_ND2(img_data: list)-> None:
+def write_ND2(img_data: list)-> None:
     # Unpack img_data
     meta,img_name = img_data
     img_obj = ND2Reader(meta['img_path'])
@@ -40,7 +40,7 @@ def _write_ND2(img_data: list)-> None:
     im_folder = join(sep,meta['exp_path_list'][serie]+sep,'Images')
     imwrite(join(sep,im_folder+sep,img_name)+".tif",img.astype(np.uint16))
     
-def _expand_dim_tif(img_path:str, axes: str)-> np.ndarray:
+def expand_dim_tif(img_path:str, axes: str)-> np.ndarray:
     """Adjust the dimension of the image to TZCYX"""
     # Open tif file
     img = imread(img_path)
@@ -53,7 +53,7 @@ def _expand_dim_tif(img_path:str, axes: str)-> np.ndarray:
             img = np.expand_dims(img,axis=ax)
     return img
 
-def _write_tif(img_data: list)-> None:
+def write_tif(img_data: list)-> None:
     # Unpack img_data
     meta,img_name,img = img_data
     _,frame,z_slice = [int(i[1:])-1 for i in img_name.split('_')[1:]]             
@@ -64,21 +64,21 @@ def _write_tif(img_data: list)-> None:
     
 def write_img(meta_dict: dict)-> None:
     # Create all the names for the images+metadata
-    img_name_list = _name_img_list(meta_dict)
+    img_name_list = name_img_list(meta_dict)
     
     if meta_dict['file_type'] == '.nd2':
         # Add metadata and img_obj to img_name_list
         img_name_list = [(meta_dict,x) for x in img_name_list]
         with ProcessPoolExecutor() as executor: # nd2 file are messed up with multithreading
-            executor.map(_write_ND2,img_name_list)
+            executor.map(write_ND2,img_name_list)
     elif meta_dict['file_type'] == '.tif':
         # Add metadata and img to img_name_list
-        img_arr = _expand_dim_tif(meta_dict['img_path'],meta_dict['axes'])
+        img_arr = expand_dim_tif(meta_dict['img_path'],meta_dict['axes'])
         img_name_list = [(meta_dict,x,img_arr) for x in img_name_list]
         with ThreadPoolExecutor() as executor:
-            executor.map(_write_tif,img_name_list)
+            executor.map(write_tif,img_name_list)
 
-def _init_exp_settings(exp_path: str, meta_dict: dict)-> dict:
+def init_exp_settings(exp_path: str, meta_dict: dict)-> dict:
     """Initialize Settings object from json file or metadata"""
     
     if exists(join(sep,exp_path+sep,'exp_settings.json')):
@@ -98,22 +98,23 @@ def img_seq_exp(img_path: str, active_channel_list: list[str], full_channel_list
     for serie in range(meta_dict['n_series']):
         exp_path = meta_dict['exp_path_list'][serie]
         meta_dict['exp_path'] = exp_path
+        print(f"\n-> Exp.: {exp_path}\n")
         
         img_folder = join(sep,exp_path+sep,'Images')
         if not exists(img_folder):
             mkdir(img_folder)
         
         if exists(join(sep,exp_path+sep,'REMOVED_EXP.txt')):
-            print(f"-> Exp.: {exp_path} has been removed\n")
+            print(" --> Exp. has been removed")
             continue
         
         if any(scandir(img_folder)) and not img_seq_overwrite:
-            print(f"-> Exp.: {exp_path} has already been processed\n")
-            exp_set_list.append(_init_exp_settings(exp_path,meta_dict))
+            print(f" --> Images have already been extracted")
+            exp_set_list.append(init_exp_settings(exp_path,meta_dict))
             continue
         
         # If images are not processed
-        print(f"-> Exp.: {exp_path} is being processed\n")
+        print(f" --> Extracting images")
         write_img(meta_dict)
         
         exp_set = init_from_dict(meta_dict)

@@ -28,7 +28,7 @@ def get_tif_meta(img_path: str) -> dict:
     imagej_meta['n_series'] = 1
     return imagej_meta
 
-def _calculate_X_pixmicron(x_resolution: float, img_width: int) -> float:
+def calculate_X_pixmicron(x_resolution: float, img_width: int) -> float:
     width_micron = round(img_width/x_resolution,ndigits=3)
     return round(width_micron/img_width,ndigits=3)
 
@@ -39,7 +39,6 @@ def get_ND2_meta(img_path: str)-> dict:
     # Get meta (sizes always include txy)
     nd2_meta = {**nd_obj.metadata,**nd_obj.sizes}
     nd2_meta['timesteps'] = nd_obj.timesteps
-    
     if 'c' not in nd2_meta: nd2_meta['c'] = 1
     
     if 'v' not in nd2_meta: nd2_meta['v'] = 1
@@ -52,11 +51,14 @@ def get_ND2_meta(img_path: str)-> dict:
         nd2_meta['z'] = 1
     return nd2_meta
 
-def _calculate_interval_sec(timesteps: list, n_frames: int, n_series: int, n_slices: int) -> int:
+def calculate_interval_sec(timesteps: list, n_frames: int, n_series: int, n_slices: int) -> int:
     # Calculate the interval between frames in seconds
     if n_frames==1: 
         return 0
     ts = np.round(np.diff(timesteps[::n_series*n_slices]/1000).mean())
+    if len(np.unique(ts))!=n_frames:
+        print("\n---- Warning: The interval between frames could not be retrieved correctly. The interval will be set to 0 ----")
+        return 0
     return int(ts)
 
 def uniformize_meta(meta_dict: dict) -> dict:
@@ -70,10 +72,10 @@ def uniformize_meta(meta_dict: dict) -> dict:
     
     for new_key,old_key in zip(new_keys,old_keys):
         if new_key=='pixel_microns' and old_key=='missing':
-            uni_meta[new_key] = _calculate_X_pixmicron(meta_dict['XResolution'],meta_dict['ImageWidth'])
+            uni_meta[new_key] = calculate_X_pixmicron(meta_dict['XResolution'],meta_dict['ImageWidth'])
         
         elif new_key=='interval_sec' and old_key=='missing':
-            uni_meta[new_key] = _calculate_interval_sec(meta_dict['timesteps'],meta_dict['t'],meta_dict['v'],meta_dict['z'])
+            uni_meta[new_key] = calculate_interval_sec(meta_dict['timesteps'],meta_dict['t'],meta_dict['v'],meta_dict['z'])
         
         else: uni_meta[new_key] = meta_dict[old_key]
     
@@ -81,7 +83,7 @@ def uniformize_meta(meta_dict: dict) -> dict:
     uni_meta['interval_sec'] = int(round(uni_meta['interval_sec']))
     return uni_meta
 
-def _create_exp_folder(meta_dict: dict) -> dict:
+def create_exp_folder(meta_dict: dict) -> dict:
     meta_dict['exp_path_list'] = []
     for serie in range(meta_dict['n_series']):
         # Create subfolder in parent folder to save the image sequence with a serie's tag
@@ -96,9 +98,10 @@ def _create_exp_folder(meta_dict: dict) -> dict:
         meta_dict['level_0_tag'] = path_split[-2]
     return meta_dict
 
-#  Main function
+# # # # # # # # main functions # # # # # # # # # 
 def get_metadata(img_path: str, active_channel_list: list, full_channel_list: list=None)-> dict:
     """Gather metadata from all image files (.nd2 and/or .tif) and is attributed to its own experiment folder"""
+    print(f"\nExtracting metadata from images")
     if img_path.endswith('.nd2'):
         meta_dict = get_ND2_meta(img_path)
         meta_dict['file_type'] = '.nd2'
@@ -111,7 +114,7 @@ def get_metadata(img_path: str, active_channel_list: list, full_channel_list: li
     
     meta_dict['img_path'] = img_path
     
-    meta_dict = _create_exp_folder(meta_dict)
+    meta_dict = create_exp_folder(meta_dict)
     
     # Add channel data
     meta_dict['active_channel_list'] = active_channel_list

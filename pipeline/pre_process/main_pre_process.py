@@ -22,7 +22,7 @@ def gather_all_images(parent_folder: str, file_type: str=None)-> list:
     
     if file_type: extension = (file_type,)
     else: extension = ('.nd2','.tif','.tiff')
-    print(f"\nSearching for {extension} files in {parent_folder}\n")
+    print(f"\nSearching for {extension} files in {parent_folder}")
     # Get the path of all the nd2 files in all subsequent folders/subfolders and exp_dict if available
     imgS_path = []
     for root , _, files in walk(parent_folder):
@@ -54,9 +54,11 @@ def pre_process_all(parent_folder: str, active_channel_list: list[str], full_cha
         exp_set_list = channel_shift_register(exp_set_list,reg_mtd,reg_channel,chan_shift_overwrite)
     
     if register_images:
+        if bg_sub_overwrite==True or chan_shift_overwrite==True: reg_overwrite=True
         exp_set_list = register_img(exp_set_list,reg_channel,reg_mtd,reg_ref,reg_overwrite)
     
     if blur:
+        if bg_sub_overwrite==True or reg_overwrite==True or chan_shift_overwrite==True: blur_overwrite=True
         exp_set_list = blur_img(exp_set_list,blur_kernel,blur_sigma,img_fold_src,blur_overwrite)
     
     return exp_set_list
