@@ -55,11 +55,12 @@ def calculate_interval_sec(timesteps: list, n_frames: int, n_series: int, n_slic
     # Calculate the interval between frames in seconds
     if n_frames==1: 
         return 0
-    ts = np.round(np.diff(timesteps[::n_series*n_slices]/1000).mean())
-    if len(np.unique(ts))!=n_frames:
+    interval_sec = np.round(np.diff(timesteps[::n_series*n_slices]/1000).mean())
+    
+    if int(interval_sec)==0:
         print("\n---- Warning: The interval between frames could not be retrieved correctly. The interval will be set to 0 ----")
         return 0
-    return int(ts)
+    return int(interval_sec)
 
 def uniformize_meta(meta_dict: dict) -> dict:
     # Uniformize both nd2 and tif meta

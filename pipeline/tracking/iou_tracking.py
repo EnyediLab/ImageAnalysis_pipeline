@@ -24,7 +24,7 @@ def modif_stitch3D(masks,stitch_threshold):
     # Invert stitch_threshold
     stitch_threshold = 1 - stitch_threshold
     # basic stitching from Cellpose
-    masks = stitch3D(masks, stitch_threshold=stitch_threshold)
+    masks = stitch3D(masks,stitch_threshold)
     
     # create mastermask to have all possible cells on one mask. Doing this by doing 'mode' operation 
     # to get the value present in most t-frames per pixel. Ignoring backgound by setting zero to nan. Threfore conversion to float is needed.
@@ -110,6 +110,10 @@ def iou_tracking(exp_set_list: list[Experiment], channel_seg: str, mask_fold_src
         mask_src_list = mask_list_src(exp_set,mask_fold_src)
         mask_stack = load_stack(mask_src_list,[channel_seg],range(exp_set.img_properties.n_frames))
         
+        if mask_stack.ndim == 4:
+            print('  ---> 4D stack detected, processing max projection instead')
+            mask_stack = np.amax(mask_stack,axis=1)
+        
         # Track masks
         mask_stack = modif_stitch3D(mask_stack,stitch_thres_percent)
         
@@ -127,6 +131,7 @@ def iou_tracking(exp_set_list: list[Experiment], channel_seg: str, mask_fold_src
         mask_stack = trim_mask(mask_stack,exp_set.img_properties.n_frames)
         
         # Save masks
+        mask_src_list = [file for file in mask_src_list if file.__contains__('_z0001')]
         for i,path in enumerate(mask_src_list):
             mask_path = path.replace('Masks','Masks_IoU_Track').replace('_Cellpose','').replace('_Threshold','')
             imsave(mask_path,mask_stack[i,...].astype('uint16'))

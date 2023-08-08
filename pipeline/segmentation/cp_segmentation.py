@@ -4,7 +4,7 @@ import sys
 
 parent_dir = getcwd()
 sys.path.append(parent_dir)
-
+import numpy as np
 from cellpose import models, core
 from cellpose.io import logger_setup
 from os.path import join, isdir
@@ -14,9 +14,11 @@ from ImageAnalysis_pipeline.pipeline.classes import Experiment
 from ImageAnalysis_pipeline.pipeline.loading_data import load_stack, img_list_src, is_processed
 
 def apply_cellpose_segmentation(img_data: list)-> None:
-    img_list,frame,cellpose_channels,model,cellpose_eval = img_data
+    img_list,frame,cellpose_channels,model,cellpose_eval,as_2D = img_data
     img = load_stack(img_list,cellpose_channels,[frame])
-    print(f"---> Processing frame {frame}")
+    if as_2D and img.ndim==3:
+        img = np.amax(img,axis=0)
+    print(f"  ---> Processing frame {frame+1}")
     img_path = img_list[0].replace("Images","Masks_Cellpose").replace('_Registered','').replace('_Blured','')
     # Run Cellpose. Returns 4 variables
     masks_cp, __, __, = model.eval(img,**cellpose_eval)
@@ -66,7 +68,7 @@ def setup_cellpose_model(model_type: str='cyto2', **kwargs)-> dict:
     
     return model_settings
 
-def setup_cellpose_eval(n_slices: int, nuclear_marker: str=None, stich: float=None, **kwargs)-> dict:
+def setup_cellpose_eval(n_slices: int, as_2D: bool, nuclear_marker: str=None, stich: float=None, **kwargs)-> dict:
     # Default kwargs for cellpose eval
     cellpose_eval = {'batch_size':8,'channels':[0,0],'channel_axis':None,'z_axis':None,
             'invert':False,'normalize':True,'diameter':60.,'do_3D':False,'anisotropy':None,
@@ -77,7 +79,7 @@ def setup_cellpose_eval(n_slices: int, nuclear_marker: str=None, stich: float=No
     if nuclear_marker:
         cellpose_eval['channels'] = [1,2]
     
-    if n_slices>1:
+    if n_slices>1 and not as_2D:
         cellpose_eval['z_axis'] = 0
         cellpose_eval['do_3D'] = True
         cellpose_eval['anisotropy'] = 2.0
@@ -112,7 +114,7 @@ def gen_input_data(exp_set: Experiment, img_fold_src: str, channel_seg: str, *ar
 
 # # # # # # # # main functions # # # # # # # # # 
 def cellpose_segmentation(exp_set_list: list[Experiment], channel_seg: str, model_type: str='cyto2', nuclear_marker: str=None,
-                          cellpose_overwrite: bool=False, stitch: float=None, img_fold_src: str=None, **kwargs)-> list[Experiment]:
+                          cellpose_overwrite: bool=False, stitch: float=None, img_fold_src: str=None, as_2D: bool=False, **kwargs)-> list[Experiment]:
     """Function to run cellpose segmentation. See https://github.com/MouseLand/cellpose for more details."""
     for exp_set in exp_set_list:
         # Check if exist
@@ -126,7 +128,7 @@ def cellpose_segmentation(exp_set_list: list[Experiment], channel_seg: str, mode
         
         # Setup model and eval settings
         cellpose_model = setup_cellpose_model(model_type,**kwargs)
-        cellpose_eval = setup_cellpose_eval(exp_set.img_properties.n_slices,nuclear_marker,stitch,**kwargs)
+        cellpose_eval = setup_cellpose_eval(exp_set.img_properties.n_slices,as_2D,nuclear_marker,stitch,**kwargs)
         logger_setup()
         model = models.CellposeModel(**cellpose_model)
         cellpose_channels = [channel_seg]
@@ -137,7 +139,7 @@ def cellpose_segmentation(exp_set_list: list[Experiment], channel_seg: str, mode
             mkdir(join(sep,exp_set.exp_path+sep,'Masks_Cellpose'))
         
         # Generate input data
-        img_data = gen_input_data(exp_set,img_fold_src,channel_seg,cellpose_channels,model,cellpose_eval)
+        img_data = gen_input_data(exp_set,img_fold_src,channel_seg,cellpose_channels,model,cellpose_eval,as_2D)
         
         # Cellpose
         with ProcessPoolExecutor() as executor:

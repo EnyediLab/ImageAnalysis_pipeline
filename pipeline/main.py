@@ -22,9 +22,9 @@ def change_attribute(exp_set_list: list[Experiment], attribute: str, value: any)
 if __name__ == "__main__":
 
     t1 = time()
-    preprocess_parameters = {'parent_folder': '/Users/benhome/BioTool/GitHub/cp_dev/Test_images/Run4',
+    preprocess_parameters = {'parent_folder': '/Users/benhome/BioTool/GitHub/cp_dev/Test_images/Run2',
                              'active_channel_list': ['GFP','RFP'],
-                             'full_channel_list':['BFP','GFP','RFP','iRed'], 
+                             'full_channel_list':['GFP','RFP'], 
                              'file_type': '.nd2',
                              'img_seq_overwrite': False,
                              'bg_sub': True,'sigma': 0.0,'size': 7,'bg_sub_overwrite': False,
@@ -34,7 +34,7 @@ if __name__ == "__main__":
                     
     segmentation_parameters = {'manual_threshold': None, 'simple_thresold_overwrite': True, 'img_fold_src': None}
     
-    cp_segmentation_parameters = {'channel_seg':'RFP','model_type':'cyto2','nuclear_marker':None,
+    cp_segmentation_parameters = {'channel_seg':'RFP','model_type':'cyto2','nuclear_marker':None,'as_2D':True,
                                   'cellpose_overwrite':False,'stitch':None,'img_fold_src':'Images_Registered',
                                   'diameter':60.,'flow_threshold':0.4,'cellprob_threshold':0.0}
     
@@ -47,7 +47,7 @@ if __name__ == "__main__":
     exp_set_list = iou_tracking(exp_set_list,**iou_tracking_parameters)
     
     # Add interval_sec manually
-    exp_set_list = change_attribute(exp_set_list,'interval_sec',10)
+    # exp_set_list = change_attribute(exp_set_list,'interval_sec',10)
     
     exp_set_list = extract_channel_data(exp_set_list,'Images_Registered',True)
     
