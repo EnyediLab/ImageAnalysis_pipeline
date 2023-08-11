@@ -1,6 +1,5 @@
 from os import sep, mkdir
 from os.path import isdir
-from time import time
 from tifffile import TiffFile
 from nd2reader import ND2Reader
 import numpy as np
@@ -132,7 +131,7 @@ def get_metadata(img_path: str, active_channel_list: list, full_channel_list: li
     
 
 if __name__ == '__main__':
-
+    from time import time
     # Test
     img_path = '/Users/benhome/BioTool/GitHub/cp_dev/c3z1t1v3s1.tif'
     active_channel_list = ['GFP','RFP','DAPI']

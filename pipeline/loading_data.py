@@ -1,13 +1,14 @@
 from __future__ import annotations
-from os import sep,getcwd
+from os import sep, getcwd, mkdir, remove
 import sys
 parent_dir = getcwd()
 sys.path.append(parent_dir)
 
+from os.path import isdir, join, isfile
 from ImageAnalysis_pipeline.pipeline.classes import Experiment
 from typing import Iterable
 import numpy as np
-from tifffile import imread
+from tifffile import imread 
 
 def load_stack(img_list: list[str], channel_list: Iterable[str], frame_range: Iterable[int])-> np.ndarray:
     # Load/Reload stack. Expected shape of images tzxyc
@@ -77,3 +78,35 @@ def is_processed(process: dict, channel_seg: str, overwrite: bool)-> bool:
     if channel_seg not in process:
         return False
     return True
+
+def create_save_folder(exp_path: str, folder_name: str)-> None:
+    save_folder = join(sep,exp_path+sep,folder_name)
+    if not isdir(save_folder):
+        mkdir(save_folder)
+    return save_folder
+
+def gen_input_data(exp_set: Experiment, img_fold_src: str, channel_seg_list: list, **kwargs)-> list:
+    img_path_list = img_list_src(exp_set,img_fold_src)
+    channel_seg = channel_seg_list[0]
+    input_data = []
+    for frame in range(exp_set.img_properties.n_frames):
+        input_dict = {}
+        imgs_path = [img for img in img_path_list if f"_f{frame+1:04d}" in img and channel_seg in img]
+        input_dict['imgs_path'] = imgs_path
+        input_dict['frame'] = frame
+        input_dict['channel_seg_list'] = channel_seg_list
+        input_dict.update(kwargs)
+        input_data.append(input_dict)
+    return input_data
+
+def delete_old_masks(class_setting_dict: dict, channel_seg: str, mask_files_list: list, overwrite: bool=False)-> None:
+    if not overwrite:
+        return
+    if not class_setting_dict:
+        return
+    if channel_seg not in class_setting_dict:
+        return
+    files_list = [file for file in mask_files_list if file.__contains__(channel_seg)]
+    for file in files_list:
+        if isfile(file):
+            remove(file)

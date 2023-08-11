@@ -1,27 +1,28 @@
 from __future__ import annotations
-from os import getcwd, sep, mkdir
+from typing import Callable
+from os import getcwd
 import sys
 
 parent_dir = getcwd()
 sys.path.append(parent_dir)
+
 import numpy as np
 from cellpose import models, core
 from cellpose.io import logger_setup
-from os.path import join, isdir
+from os.path import isdir
 from tifffile import imsave
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from ImageAnalysis_pipeline.pipeline.classes import Experiment
-from ImageAnalysis_pipeline.pipeline.loading_data import load_stack, img_list_src, is_processed
+from ImageAnalysis_pipeline.pipeline.loading_data import load_stack, is_processed, create_save_folder, gen_input_data, delete_old_masks
 
-def apply_cellpose_segmentation(img_data: list)-> None:
-    img_list,frame,cellpose_channels,model,cellpose_eval,as_2D = img_data
-    img = load_stack(img_list,cellpose_channels,[frame])
-    if as_2D and img.ndim==3:
+def apply_cellpose_segmentation(img_dict: dict)-> None:
+    img = load_stack(img_dict['imgs_path'],img_dict['channel_seg_list'],[img_dict['frame']])
+    if img_dict['as_2D'] and img.ndim==3:
         img = np.amax(img,axis=0)
-    print(f"  ---> Processing frame {frame+1}")
-    img_path = img_list[0].replace("Images","Masks_Cellpose").replace('_Registered','').replace('_Blured','')
+    print(f"  ---> Processing frame {img_dict['frame']+1}")
+    img_path = img_dict['imgs_path'][0].replace("Images","Masks_Cellpose").replace('_Registered','').replace('_Blured','')
     # Run Cellpose. Returns 4 variables
-    masks_cp, __, __, = model.eval(img,**cellpose_eval)
+    masks_cp, __, __, = img_dict['model'].eval(img,**img_dict['cellpose_eval'])
     
     # Save mask
     if masks_cp.ndim==3:
@@ -102,14 +103,16 @@ def setup_cellpose_eval(n_slices: int, as_2D: bool, nuclear_marker: str=None, st
                                   f"Please choose one of the following: {cellpose_eval.keys()}"))
     return cellpose_eval
 
-def gen_input_data(exp_set: Experiment, img_fold_src: str, channel_seg: str, *args)-> list:
-    img_path_list = img_list_src(exp_set,img_fold_src)
-    img_data = []
-    for frame in range(exp_set.img_properties.n_frames):
-        imgs_path = [img for img in img_path_list if f"_f{frame+1:04d}" in img and channel_seg in img]
-        
-        img_data.append([imgs_path,frame,*args])
-    return img_data
+def parallel_executor(func: Callable, input_args: list, gpu: bool)-> None:
+    if gpu and len(input_args[0]['imgs_path'])==1: # If GPU and 2D images: parallelization
+        with ThreadPoolExecutor() as executor:
+            executor.map(func,input_args)
+    elif gpu and len(input_args[0]['imgs_path'])>1: # If GPU and 3D images: no parallelization
+        for args in input_args:
+            func(args)
+    else: # If CPU 2D or 3D: parallelization
+        with ProcessPoolExecutor() as executor:
+            executor.map(func,input_args)
 
 
 # # # # # # # # main functions # # # # # # # # # 
@@ -125,6 +128,8 @@ def cellpose_segmentation(exp_set_list: list[Experiment], channel_seg: str, mode
         
         # Else run cellpose
         print(f" --> Segmenting cells for the '{channel_seg}' channel")
+        delete_old_masks(exp_set.masks.cellpose_seg,channel_seg,exp_set.mask_cellpose_list,cellpose_overwrite)
+        create_save_folder(exp_set.exp_path,'Masks_Cellpose')
         
         # Setup model and eval settings
         cellpose_model = setup_cellpose_model(model_type,**kwargs)
@@ -134,21 +139,13 @@ def cellpose_segmentation(exp_set_list: list[Experiment], channel_seg: str, mode
         cellpose_channels = [channel_seg]
         if nuclear_marker: cellpose_channels.append(nuclear_marker)
         
-        # Create blur dir and apply blur
-        if not isdir(join(sep,exp_set.exp_path+sep,'Masks_Cellpose')):
-            mkdir(join(sep,exp_set.exp_path+sep,'Masks_Cellpose'))
-        
         # Generate input data
-        img_data = gen_input_data(exp_set,img_fold_src,channel_seg,cellpose_channels,model,cellpose_eval,as_2D)
+        img_data = gen_input_data(exp_set,img_fold_src,cellpose_channels,model=model,cellpose_eval=cellpose_eval,as_2D=as_2D)
         
         # Cellpose
-        with ProcessPoolExecutor() as executor:
-            executor.map(apply_cellpose_segmentation,img_data)
+        parallel_executor(apply_cellpose_segmentation,img_data,cellpose_model['gpu'])
         
         # Save settings
-        if exp_set.masks.cellpose_seg:
-            exp_set.masks.cellpose_seg.update({channel_seg:{'model_settings':cellpose_model,'cellpose_eval':cellpose_eval}})
-        else:
-            exp_set.masks.cellpose_seg = {channel_seg:{'model_settings':cellpose_model,'cellpose_eval':cellpose_eval}}
+        exp_set.masks.cellpose_seg[channel_seg] = {'model_settings':cellpose_model,'cellpose_eval':cellpose_eval}
         exp_set.save_as_json()
     return exp_set_list

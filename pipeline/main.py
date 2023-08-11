@@ -7,7 +7,7 @@ from time import time
 # TODO: fix module path 
 from ImageAnalysis_pipeline.pipeline.classes import Experiment
 from ImageAnalysis_pipeline.pipeline.pre_process.main_pre_process import pre_process_all
-from ImageAnalysis_pipeline.pipeline.segmentation.segmentation import simple_threshold
+from ImageAnalysis_pipeline.pipeline.segmentation.segmentation import threshold
 from ImageAnalysis_pipeline.pipeline.segmentation.cp_segmentation import cellpose_segmentation
 from ImageAnalysis_pipeline.pipeline.tracking.iou_tracking import iou_tracking
 from ImageAnalysis_pipeline.pipeline.analysis.channel_data import extract_channel_data
@@ -22,7 +22,7 @@ def change_attribute(exp_set_list: list[Experiment], attribute: str, value: any)
 if __name__ == "__main__":
 
     t1 = time()
-    preprocess_parameters = {'parent_folder': '/Users/benhome/BioTool/GitHub/cp_dev/Test_images/Run2',
+    preprocess_parameters = {'parent_folder': '/media/ben/Analysis/Python/Test_images/Run2',
                              'active_channel_list': ['GFP','RFP'],
                              'full_channel_list':['GFP','RFP'], 
                              'file_type': '.nd2',
@@ -32,24 +32,27 @@ if __name__ == "__main__":
                              'register_images': True, 'reg_ref': 'previous', 'reg_overwrite': False,
                              'blur': False, 'blur_kernel': (15,15), 'blur_sigma': 5,'img_fold_src': None, 'blur_overwrite': False,}
                     
-    segmentation_parameters = {'manual_threshold': None, 'simple_thresold_overwrite': True, 'img_fold_src': None}
+    segmentation_parameters = {'channel_seg':'RFP','manual_threshold': 75, 'thresold_overwrite': True, 'img_fold_src': 'Images_Registered'}
     
     cp_segmentation_parameters = {'channel_seg':'RFP','model_type':'cyto2','nuclear_marker':None,'as_2D':True,
-                                  'cellpose_overwrite':False,'stitch':None,'img_fold_src':'Images_Registered',
-                                  'diameter':60.,'flow_threshold':0.4,'cellprob_threshold':0.0}
+                                  'cellpose_overwrite':True,'stitch':None,'img_fold_src':'Images_Registered',
+                                  'diameter':60.,'flow_threshold':0.4,'cellprob_threshold':0.0,'gpu':True}
     
     iou_tracking_parameters = {'channel_seg':'RFP','mask_fold_src':'Masks_Cellpose','stitch_thres_percent':0.75,
                                'shape_thres_percent':0.1,'iou_track_overwrite':False, 'n_mask': 10}
     
+    # if cp_segmentation_parameters['cellpose_overwrite']:
+    #     iou_tracking_parameters['iou_track_overwrite'] = True
+    
     exp_set_list = pre_process_all(**preprocess_parameters)
-    # exp_set_list = simple_threshold(exp_set_list,**segmentation_parameters)
+    # exp_set_list = threshold(exp_set_list,**segmentation_parameters)
     exp_set_list = cellpose_segmentation(exp_set_list,**cp_segmentation_parameters)
-    exp_set_list = iou_tracking(exp_set_list,**iou_tracking_parameters)
+    # exp_set_list = iou_tracking(exp_set_list,**iou_tracking_parameters)
     
     # Add interval_sec manually
     # exp_set_list = change_attribute(exp_set_list,'interval_sec',10)
     
-    exp_set_list = extract_channel_data(exp_set_list,'Images_Registered',True)
+    # exp_set_list = extract_channel_data(exp_set_list,'Images_Registered',True)
     
     t2 = time()
     if t2-t1<60: print(f"Time to process: {round(t2-t1,ndigits=3)} sec\n")

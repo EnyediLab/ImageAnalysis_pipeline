@@ -1,16 +1,17 @@
 from __future__ import annotations
-from os import sep,mkdir,scandir,getcwd
+from os import sep, scandir, getcwd
 from os.path import join, exists
 import sys
 parent_dir = getcwd() 
 # Add the parent to sys.pah
 sys.path.append(parent_dir)
-from ImageAnalysis_pipeline.pipeline.classes import init_from_dict,init_from_json,Experiment
+from ImageAnalysis_pipeline.pipeline.classes import init_from_dict, init_from_json, Experiment
+from ImageAnalysis_pipeline.pipeline.loading_data import create_save_folder
 
 from nd2reader import ND2Reader
 from tifffile import imwrite, imread
 import numpy as np
-from concurrent.futures import ProcessPoolExecutor,ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from ImageAnalysis_pipeline.pipeline.pre_process.metadata import get_metadata
 
  
@@ -100,15 +101,13 @@ def img_seq_exp(img_path: str, active_channel_list: list[str], full_channel_list
         meta_dict['exp_path'] = exp_path
         print(f"\n-> Exp.: {exp_path}\n")
         
-        img_folder = join(sep,exp_path+sep,'Images')
-        if not exists(img_folder):
-            mkdir(img_folder)
-        
         if exists(join(sep,exp_path+sep,'REMOVED_EXP.txt')):
             print(" --> Exp. has been removed")
             continue
         
-        if any(scandir(img_folder)) and not img_seq_overwrite:
+        save_folder = create_save_folder(exp_path,'Images')
+        
+        if any(scandir(save_folder)) and not img_seq_overwrite:
             print(f" --> Images have already been extracted")
             exp_set_list.append(init_exp_settings(exp_path,meta_dict))
             continue

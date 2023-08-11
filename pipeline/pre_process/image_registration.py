@@ -1,6 +1,6 @@
 from __future__ import annotations
-from os.path import join, exists
-from os import sep, mkdir,getcwd
+from os.path import join
+from os import sep, getcwd
 import sys
 parent_dir = getcwd()
 sys.path.append(parent_dir)
@@ -10,11 +10,11 @@ import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 from pystackreg import StackReg
 from ImageAnalysis_pipeline.pipeline.classes import Experiment
-from ImageAnalysis_pipeline.pipeline.loading_data import load_stack
+from ImageAnalysis_pipeline.pipeline.loading_data import load_stack, create_save_folder
 from typing import Iterable
 
 
-def chan_shift_file_name(file_list: list, channel_list: list, reg_channel: str)-> list:
+def chan_shift_file_name(file_list: list, channel_list: list, reg_channel: str)-> list[tuple]:
     """Return a list of tuples of file names to be registered. 
     The first element of the tuple is the reference image and the second is the image to be registered.
     """
@@ -41,20 +41,19 @@ def select_reg_mtd(reg_mtd: str)-> StackReg:
     elif reg_mtd=='bilinear':        stackreg = StackReg(StackReg.BILINEAR)
     return stackreg
 
-def correct_chan_shift(input_data: list)-> None:
+def correct_chan_shift(input_dict: dict)-> None:
     # Unpack input data
-    stackreg,file_list = input_data
+    stackreg,file_list = input_dict
     
-    # Load ref_img (which is not contained in chan_list)
-    ref_img = imread(file_list[0])
-    # Load img
-    img_file = file_list[1]
-    img = imread(img_file)
+    # Load ref_img and img
+    ref_img_path,img_path = input_dict['img_group']
+    ref_img = imread(ref_img_path)
+    img = imread(img_path)
     # Apply transfo
     reg_img = stackreg.register_transform(ref_img,img)
     # Save
     reg_img[reg_img<0] = 0
-    imwrite(img_file,reg_img.astype(np.uint16))
+    imwrite(img_path,reg_img.astype(np.uint16))
 
 def register_with_first(stackreg: StackReg, exp_set: Experiment, reg_channel: str, img_folder: str)-> None:
     # Load ref image
@@ -148,7 +147,7 @@ def channel_shift_register(exp_set_list: list[Experiment], reg_mtd: str, reg_cha
         
         # Generate input data for parallel processing
         img_group_list = chan_shift_file_name(exp_set.processed_images_list,exp_set.active_channel_list,reg_channel)
-        input_data = [(stackreg,img_list) for img_list in img_group_list]
+        input_data = [{'stackreg':stackreg,'img_group':img_group} for img_group in img_group_list]
                 
         with ProcessPoolExecutor() as executor:
             executor.map(correct_chan_shift,input_data)
@@ -159,9 +158,7 @@ def channel_shift_register(exp_set_list: list[Experiment], reg_mtd: str, reg_cha
 
 def register_img(exp_set_list: list[Experiment], reg_channel: str, reg_mtd: str, reg_ref: int, reg_overwrite: bool=False)-> list[Experiment]:
     for exp_set in exp_set_list:
-        img_folder = join(sep,exp_set.exp_path+sep,'Images_Registered')
-        if not exists(img_folder):
-            mkdir(img_folder)
+        save_folder = create_save_folder(exp_set.exp_path,'Images_Registered')
         
         if exp_set.process.img_registered and not reg_overwrite:
             print(f" --> Registration was already applied to the images with {exp_set.process.img_registered}")
@@ -170,11 +167,11 @@ def register_img(exp_set_list: list[Experiment], reg_channel: str, reg_mtd: str,
         stackreg = select_reg_mtd(reg_mtd)
         print(f" --> Registering images with '{reg_ref}_image' reference and {reg_mtd} method")
         if reg_ref=='first':
-            register_with_first(stackreg,exp_set,reg_channel,img_folder)
+            register_with_first(stackreg,exp_set,reg_channel,save_folder)
         elif reg_ref=='previous':
-            register_with_previous(stackreg,exp_set,reg_channel,img_folder)
+            register_with_previous(stackreg,exp_set,reg_channel,save_folder)
         elif reg_ref=='mean':
-            register_with_mean(stackreg,exp_set,reg_channel,img_folder)
+            register_with_mean(stackreg,exp_set,reg_channel,save_folder)
         exp_set.process.img_registered = [f"reg_channel={reg_channel}",f"reg_mtd={reg_mtd}",f"reg_ref={reg_ref}"]
         exp_set.save_as_json()
     return exp_set_list

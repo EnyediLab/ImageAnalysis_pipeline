@@ -1,5 +1,5 @@
 from __future__ import annotations
-from os import getcwd, sep, mkdir, listdir
+from os import getcwd, sep, listdir
 import sys
 
 parent_dir = getcwd()
@@ -7,9 +7,9 @@ sys.path.append(parent_dir)
 
 import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning) 
-from os.path import join, isdir
+from os.path import join
 from ImageAnalysis_pipeline.pipeline.classes import Experiment
-from ImageAnalysis_pipeline.pipeline.loading_data import is_processed, mask_list_src, load_stack
+from ImageAnalysis_pipeline.pipeline.loading_data import is_processed, mask_list_src, load_stack, create_save_folder, delete_old_masks
 from ImageAnalysis_pipeline.pipeline.mask_transformation.mask_morph import morph_missing_mask, morph_missing_mask_para
 from cellpose.utils import stitch3D
 from cellpose.metrics import _intersection_over_union
@@ -102,9 +102,9 @@ def iou_tracking(exp_set_list: list[Experiment], channel_seg: str, mask_fold_src
         # Track images
         print(f" --> Tracking cells for the '{channel_seg}' channel")
         
-        # Create blur dir and apply blur
-        if not isdir(join(sep,exp_set.exp_path+sep,'Masks_IoU_Track')):
-            mkdir(join(sep,exp_set.exp_path+sep,'Masks_IoU_Track'))
+        # Create save folder and remove old masks
+        create_save_folder(exp_set.exp_path,'Masks_IoU_Track')
+        delete_old_masks(exp_set.masks.iou_tracking,channel_seg,exp_set.mask_iou_track_list,iou_track_overwrite)
         
         # Load masks
         mask_src_list = mask_list_src(exp_set,mask_fold_src)

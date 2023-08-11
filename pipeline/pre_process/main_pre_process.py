@@ -1,6 +1,6 @@
 from __future__ import annotations
 from os.path import join
-from os import sep,getcwd
+from os import sep, getcwd
 import sys
 parent_dir = getcwd()
 sys.path.append(parent_dir)
@@ -9,7 +9,6 @@ from ImageAnalysis_pipeline.pipeline.classes import Experiment
 from os import sep,walk
 from os.path import isdir, join
 import re
-from time import time
 from ImageAnalysis_pipeline.pipeline.pre_process.image_sequence import img_seq_all
 from ImageAnalysis_pipeline.pipeline.pre_process.image_blur import blur_img
 from ImageAnalysis_pipeline.pipeline.pre_process.background_sub import background_sub
@@ -65,8 +64,8 @@ def pre_process_all(parent_folder: str, active_channel_list: list[str], full_cha
     
 
 if __name__ == "__main__":
+    from time import time
     
-
     # Test
     active_channel_list = ['GFP','RFP']
 
