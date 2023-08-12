@@ -35,11 +35,11 @@ if __name__ == "__main__":
     segmentation_parameters = {'channel_seg':'RFP','manual_threshold': 75, 'thresold_overwrite': True, 'img_fold_src': 'Images_Registered'}
     
     cp_segmentation_parameters = {'channel_seg':'RFP','model_type':'cyto2','nuclear_marker':None,'as_2D':True,
-                                  'cellpose_overwrite':True,'stitch':None,'img_fold_src':'Images_Registered',
+                                  'cellpose_overwrite':False,'stitch':None,'img_fold_src':'Images_Registered',
                                   'diameter':60.,'flow_threshold':0.4,'cellprob_threshold':0.0,'gpu':True}
     
     iou_tracking_parameters = {'channel_seg':'RFP','mask_fold_src':'Masks_Cellpose','stitch_thres_percent':0.75,
-                               'shape_thres_percent':0.1,'iou_track_overwrite':False, 'n_mask': 10}
+                               'shape_thres_percent':0.1,'iou_track_overwrite':True, 'n_mask': 10}
     
     # if cp_segmentation_parameters['cellpose_overwrite']:
     #     iou_tracking_parameters['iou_track_overwrite'] = True
@@ -47,7 +47,7 @@ if __name__ == "__main__":
     exp_set_list = pre_process_all(**preprocess_parameters)
     # exp_set_list = threshold(exp_set_list,**segmentation_parameters)
     exp_set_list = cellpose_segmentation(exp_set_list,**cp_segmentation_parameters)
-    # exp_set_list = iou_tracking(exp_set_list,**iou_tracking_parameters)
+    exp_set_list = iou_tracking(exp_set_list,**iou_tracking_parameters)
     
     # Add interval_sec manually
     # exp_set_list = change_attribute(exp_set_list,'interval_sec',10)

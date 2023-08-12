@@ -7,7 +7,7 @@ sys.path.append(parent_dir)
 import numpy as np
 import cv2, itertools
 from mahotas import distance
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 
 
 def fill_gaps(mask_stack: np.ndarray)-> np.ndarray:
@@ -222,33 +222,7 @@ def bbox_ND(mask: np.ndarray)-> tuple(np.ndarray, slice):
     
     return tuple([mask[s], s])
 
-# # # # # # # # main functions # # # # # # # # # 
-def morph_missing_mask(mask_stack: np.ndarray, n_mask: int)-> np.ndarray:
-    print('  ---> Morphing missing masks')
-    new_stack = np.zeros((mask_stack.shape))
-    for obj in list(np.unique(mask_stack))[1:]:
-        temp = mask_stack.copy()
-        temp[temp!=obj] = 0
-        framenumber = len(np.unique(np.where(mask_stack == obj)[0]))
-        if framenumber!=mask_stack.shape[0] and framenumber > n_mask:
-            temp = fill_gaps(temp)
-        new_stack = new_stack + temp
-        if np.any(new_stack>obj):
-            new_stack[new_stack>obj] = new_stack[new_stack>obj]-obj
-    
-    # Recheck for incomplete track
-    for obj in list(np.unique(new_stack))[1:]:
-        framenumber = len(np.unique(np.where(new_stack==obj)[0]))
-        if framenumber!=mask_stack.shape[0]:
-            new_stack[new_stack==obj] = 0
-    
-    return new_stack.astype('uint16') 
-
-
-
-
-
-def apply_morph(input_data: list)-> np.ndarray: # TODO: try to implement multiprocessing
+def apply_morph(input_data: list)-> np.ndarray:
     mask_stack,obj,n_mask = input_data
     temp = mask_stack.copy()
     temp[temp!=obj] = 0
@@ -257,11 +231,12 @@ def apply_morph(input_data: list)-> np.ndarray: # TODO: try to implement multipr
         temp = fill_gaps(temp)
     return temp
 
-def morph_missing_mask_para(mask_stack: np.ndarray, n_mask: int)-> np.ndarray:
+# # # # # # # # main functions # # # # # # # # # 
+def morph_missing_mask(mask_stack: np.ndarray, n_mask: int)-> np.ndarray:
     print('  ---> Morphing missing masks')
     input_data = [(mask_stack,obj,n_mask) for obj in list(np.unique(mask_stack))[1:]]
     
-    with ProcessPoolExecutor() as executor:
+    with ThreadPoolExecutor() as executor:
         temp_masks = executor.map(apply_morph,input_data)
         new_stack = np.zeros((mask_stack.shape))
         for obj,temp in zip(list(np.unique(mask_stack))[1:],temp_masks):
@@ -274,3 +249,25 @@ def morph_missing_mask_para(mask_stack: np.ndarray, n_mask: int)-> np.ndarray:
         framenumber = len(np.unique(np.where(new_stack==obj)[0]))
         if framenumber!=mask_stack.shape[0]:
             new_stack[new_stack==obj] = 0
+    return new_stack.astype('uint16')
+
+# def morph_missing_mask(mask_stack: np.ndarray, n_mask: int)-> np.ndarray:
+#     print('  ---> Morphing missing masks')
+#     new_stack = np.zeros((mask_stack.shape))
+#     for obj in list(np.unique(mask_stack))[1:]:
+#         temp = mask_stack.copy()
+#         temp[temp!=obj] = 0
+#         framenumber = len(np.unique(np.where(mask_stack == obj)[0]))
+#         if framenumber!=mask_stack.shape[0] and framenumber > n_mask:
+#             temp = fill_gaps(temp)
+#         new_stack = new_stack + temp
+#         if np.any(new_stack>obj):
+#             new_stack[new_stack>obj] = new_stack[new_stack>obj]-obj
+    
+#     # Recheck for incomplete track
+#     for obj in list(np.unique(new_stack))[1:]:
+#         framenumber = len(np.unique(np.where(new_stack==obj)[0]))
+#         if framenumber!=mask_stack.shape[0]:
+#             new_stack[new_stack==obj] = 0
+    
+#     return new_stack.astype('uint16') 

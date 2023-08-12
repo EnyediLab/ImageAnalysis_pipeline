@@ -10,7 +10,7 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 from os.path import join
 from ImageAnalysis_pipeline.pipeline.classes import Experiment
 from ImageAnalysis_pipeline.pipeline.loading_data import is_processed, mask_list_src, load_stack, create_save_folder, delete_old_masks
-from ImageAnalysis_pipeline.pipeline.mask_transformation.mask_morph import morph_missing_mask, morph_missing_mask_para
+from ImageAnalysis_pipeline.pipeline.mask_transformation.mask_morph import morph_missing_mask
 from cellpose.utils import stitch3D
 from cellpose.metrics import _intersection_over_union
 from scipy.stats import mode
@@ -18,23 +18,30 @@ from tifffile import imsave
 import numpy as np
 
 
-
-def modif_stitch3D(masks,stitch_threshold):
+def track_cells(masks: np.ndarray, stitch_threshold: float)-> np.ndarray:
     print('  ---> Tracking cells...')
     # Invert stitch_threshold
     stitch_threshold = 1 - stitch_threshold
-    # basic stitching from Cellpose
+    # basic stitching/tracking from Cellpose
     masks = stitch3D(masks,stitch_threshold)
     
-    # create mastermask to have all possible cells on one mask. Doing this by doing 'mode' operation 
-    # to get the value present in most t-frames per pixel. Ignoring backgound by setting zero to nan. Threfore conversion to float is needed.
+    # Create mask with all possible cells
+    master_mask = create_master_mask(masks)
+
+    return master_mask_stitching(masks, master_mask, stitch_threshold)
+
+def create_master_mask(masks: np.ndarray)-> np.ndarray:
+    # Create mastermask to have all possible cells on one mask. Doing this by doing 'mode' operation 
+    # to get the value present in most t-frames per pixel. Ignoring backgound by setting zero to nan.
+    # Therefore conversion to float is needed.
     rawmasks_ignorezero = masks.copy().astype(float)
     rawmasks_ignorezero[rawmasks_ignorezero == 0] = np.nan
     master_mask = mode(rawmasks_ignorezero, axis=0, keepdims=False, nan_policy='omit')[0]
-    master_mask = master_mask.astype(int)
+    return master_mask.astype(int)
 
-    # second stitch round by using mastermask to compair with every frame
-    #slighly changed code from Cellpose 'stitch3D'
+def master_mask_stitching(masks: np.ndarray, master_mask: np.ndarray, stitch_threshold: float)-> np.ndarray:
+    # Second round of stitch/tracking by using mastermask to compair with every frame
+    # slighly changed code from Cellpose 'stitch3D'
     """ stitch 2D masks into 3D volume with stitch_threshold on IOU """
     mmax = masks[0].max()
     empty = 0
@@ -115,7 +122,7 @@ def iou_tracking(exp_set_list: list[Experiment], channel_seg: str, mask_fold_src
             mask_stack = np.amax(mask_stack,axis=1)
         
         # Track masks
-        mask_stack = modif_stitch3D(mask_stack,stitch_thres_percent)
+        mask_stack = track_cells(mask_stack,stitch_thres_percent)
         
         # Check shape size for detecting merged cells
         mask_stack = check_mask_size(mask_stack,shape_thres_percent)
@@ -125,8 +132,7 @@ def iou_tracking(exp_set_list: list[Experiment], channel_seg: str, mask_fold_src
         
         # Morph missing masks
         mask_stack = morph_missing_mask(mask_stack,n_mask)
-        # mask_stack = morph_missing_mask_para(mask_stack,n_mask)
-
+        
         # Trim masks
         mask_stack = trim_mask(mask_stack,exp_set.img_properties.n_frames)
         
@@ -137,12 +143,8 @@ def iou_tracking(exp_set_list: list[Experiment], channel_seg: str, mask_fold_src
             imsave(mask_path,mask_stack[i,...].astype('uint16'))
         
         # Save settings
-        if exp_set.masks.iou_tracking:
-            exp_set.masks.iou_tracking.update({channel_seg:{'mask_fold_src':mask_fold_src,'stitch_thres_percent':stitch_thres_percent,
-                                        'shape_thres_percent':shape_thres_percent,'n_mask':n_mask}})
-        else: 
-            exp_set.masks.iou_tracking = {channel_seg:{'mask_fold_src':mask_fold_src,'stitch_thres_percent':stitch_thres_percent,
-                                        'shape_thres_percent':shape_thres_percent,'n_mask':n_mask}}
+        exp_set.masks.iou_tracking[channel_seg] = {'mask_fold_src':mask_fold_src,'stitch_thres_percent':stitch_thres_percent,
+                                        'shape_thres_percent':shape_thres_percent,'n_mask':n_mask}
         exp_set.save_as_json()
     return exp_set_list
 
