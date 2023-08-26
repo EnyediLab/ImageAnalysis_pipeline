@@ -20,9 +20,9 @@ def masks_process_dict(masks: Masks)-> dict:
     masks_dict ={}
     for field in fields(masks):
         name = field.name
-        value = list(getattr(masks,name).keys())
-        if value:
-            masks_dict[name] = value
+        channels = list(getattr(masks,name).keys())
+        if channels:
+            masks_dict[name] = channels
     return masks_dict
 
 def trim_masks_list(masks_dict: dict)-> dict:
@@ -30,37 +30,33 @@ def trim_masks_list(masks_dict: dict)-> dict:
         del masks_dict['cellpose_seg']
     return masks_dict
 
-def get_masks_path(exp_set: Experiment)-> dict:
+def gen_input_data(exp_set: Experiment, img_folder_src: str)-> list[dict]:
     masks_dict = masks_process_dict(exp_set.masks)
     masks_dict = trim_masks_list(masks_dict)
     
-    new_masks_dict = {}
-    for mask_name,mask_channels in masks_dict.items():
-        if mask_name == 'iou_tracking':
-            mask_files = exp_set.mask_iou_track_list
-        elif mask_name == 'cellpose_seg':
-            mask_files = exp_set.mask_cellpose_list
-        
-        for chan in mask_channels:
-            chan_mask_list = [file for file in mask_files if chan in file]
-            new_masks_dict[mask_name] = {chan:[[file for file in chan_mask_list if f"_f{(i+1):04d}" in file] for i in range(exp_set.img_properties.n_frames)]}
-    return new_masks_dict
-
-def gen_input_data(exp_set: Experiment, img_folder_src: str)-> list[dict]:
-    masks_dict = get_masks_path(exp_set)
     img_path_list = img_list_src(exp_set,img_folder_src)
     img_path_input = [[file for file in img_path_list if file.__contains__(f"_f{(i+1):04d}")] for i in range(exp_set.img_properties.n_frames)]
     
     new_masks_dict = {}
-    for mask_name, mask_channelsNfiles_dict in masks_dict.items():
-        for chan, mask_files_list in mask_channelsNfiles_dict.items():
-            new_masks_dict[mask_name] = {chan:list(zip(mask_files_list,img_path_input))}
+    for mask_name,mask_channels in masks_dict.items():
+        mask_path_list = mask_list_src(exp_set,mask_name)
+        mask_keys = get_mask_keys(mask_name,exp_set)
+        for chan in mask_channels:
+            mask_list_of_chan = [file for file in mask_path_list if chan in file]
+            mask_list_of_chan_per_frame = [[file for file in mask_list_of_chan if f"_f{(i+1):04d}" in file] for i in range(exp_set.img_properties.n_frames)]
+            for i in range(len(mask_list_of_chan_per_frame)):
+                new_masks_dict[mask_name] = {chan:{'mask_list':mask_list_of_chan_per_frame[i],'img_list':img_path_input[i],
+                                                   'mask_chan':chan,'mask_name':mask_name,'exp_set':exp_set,'mask_keys':mask_keys}}
+    
     return new_masks_dict
     
 def get_mask_keys(mask_name: str, exp_set: Experiment)-> list:
     default_keys = ['cell','frames','time','mask_name','mask_chan','exp']  
     
     if mask_name == 'iou_tracking':
+        specific_keys = exp_set.active_channel_list
+        return default_keys + specific_keys
+    else:
         specific_keys = exp_set.active_channel_list
         return default_keys + specific_keys
 
@@ -76,6 +72,7 @@ def change_df_dtype(df: pd.DataFrame, exp_set: Experiment)-> pd.DataFrame:
 def extract_mask_data(mask_name: str, mask_channelsNfiles_dict: dict, exp_set: Experiment)-> pd.DataFrame:
     
     mask_keys = get_mask_keys(mask_name,exp_set)
+    print(mask_keys)
     df = pd.DataFrame(columns=mask_keys)
     for mask_chan,input_list in mask_channelsNfiles_dict.items():
         for input_imgs in input_list:
@@ -98,11 +95,11 @@ def extract_mask_data(mask_name: str, mask_channelsNfiles_dict: dict, exp_set: E
             df = pd.concat([df,pd.DataFrame.from_dict(temp_dict)],ignore_index=True) 
     return df  
     
-def extract_mask_data_para(mask_name: str, mask_channelsNfiles_dict: dict, exp_set: Experiment)-> pd.DataFrame:
+def extract_mask_data_para(mask_name: str, mask_input_dict: dict, exp_set: Experiment)-> pd.DataFrame: # TODO: fix this function
     
     mask_keys = get_mask_keys(mask_name,exp_set)
     df = pd.DataFrame(columns=mask_keys)
-    for mask_chan,input_list in mask_channelsNfiles_dict.items():
+    for mask_chan,input_list in mask_input_dict.items():
         input_list = [[mask_path,img_path,mask_chan,mask_keys,exp_set,mask_name] for mask_path,img_path in input_list]
         
         with ProcessPoolExecutor() as executor:
@@ -144,11 +141,11 @@ def extract_channel_data(exp_set_list: list[Experiment], img_folder_src: str, da
         # Pre-load masks and images path
         masks_dict = gen_input_data(exp_set,img_folder_src)
         
-        for mask_name,mask_channelsNfiles_dict in masks_dict.items():
+        for mask_name,mask_input_dict in masks_dict.items():
             # Don't use parallel processing
             # df = extract_mask_data(mask_name,mask_channelsNfiles_dict,exp_set)
             # Use parallel processing
-            df = extract_mask_data_para(mask_name,mask_channelsNfiles_dict,exp_set)
+            df = extract_mask_data_para(mask_name,mask_input_dict,exp_set)
             
             # Add tags
             df['level_0_tag'] = exp_set.analysis.level_0_tag

@@ -39,7 +39,7 @@ if __name__ == "__main__":
                                   'diameter':60.,'flow_threshold':0.4,'cellprob_threshold':0.0,'gpu':True}
     
     iou_tracking_parameters = {'channel_seg':'RFP','mask_fold_src':'Masks_Cellpose','stitch_thres_percent':0.75,
-                               'shape_thres_percent':0.1,'iou_track_overwrite':True, 'n_mask': 10}
+                               'shape_thres_percent':0.1,'iou_track_overwrite':False, 'n_mask': 10}
     
     # if cp_segmentation_parameters['cellpose_overwrite']:
     #     iou_tracking_parameters['iou_track_overwrite'] = True
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     # Add interval_sec manually
     # exp_set_list = change_attribute(exp_set_list,'interval_sec',10)
     
-    # exp_set_list = extract_channel_data(exp_set_list,'Images_Registered',True)
+    exp_set_list = extract_channel_data(exp_set_list,'Images_Registered',True)
     
     t2 = time()
     if t2-t1<60: print(f"Time to process: {round(t2-t1,ndigits=3)} sec\n")

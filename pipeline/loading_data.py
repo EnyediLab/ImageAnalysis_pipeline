@@ -53,13 +53,13 @@ def img_list_src(exp_set: Experiment, img_fold_src: str | None)-> list[str]:
 def mask_list_src(exp_set: Experiment, mask_fold_src: str | None)-> list[str]:
     """If not manually specified, return the latest processed images list"""
     
-    if mask_fold_src and mask_fold_src == 'Masks_Threshold':
+    if mask_fold_src and mask_fold_src == 'Masks_Threshold' or mask_fold_src == 'threshold_seg':
         return exp_set.mask_threshold_list
     
-    if mask_fold_src and mask_fold_src == 'Masks_Cellpose':
+    if mask_fold_src and mask_fold_src == 'Masks_Cellpose' or mask_fold_src == 'cellpose_seg':
         return exp_set.mask_cellpose_list
     
-    if mask_fold_src and mask_fold_src == 'Masks_IoU_Track':
+    if mask_fold_src and mask_fold_src == 'Masks_IoU_Track' or mask_fold_src == 'iou_tracking':
         return exp_set.mask_iou_track_list
     
     # If not manually specified, return the latest processed images list
