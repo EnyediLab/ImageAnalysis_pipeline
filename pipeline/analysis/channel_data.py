@@ -115,7 +115,7 @@ def extract_channel_data(exp_set_list: list[Experiment], img_folder_src: str, da
         df_analysis = exp_set.load_df_analysis(data_overwrite)
         if not df_analysis.empty:
             print(f" --> Cell data have already been extracted")
-            df_analysis = change_df_dtype(df_analysis,exp_set)
+            df_analysis = change_df_dtype(df_analysis,exp_set) # TODO: I don't have to do this, remove later
             continue
         
         print(f" --> Extracting cell data")   
