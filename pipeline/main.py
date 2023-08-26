@@ -52,7 +52,7 @@ if __name__ == "__main__":
     # Add interval_sec manually
     # exp_set_list = change_attribute(exp_set_list,'interval_sec',10)
     
-    exp_set_list = extract_channel_data(exp_set_list,'Images_Registered',True)
+    exp_set_list = extract_channel_data(exp_set_list,'Images_Registered',False)
     
     t2 = time()
     if t2-t1<60: print(f"Time to process: {round(t2-t1,ndigits=3)} sec\n")

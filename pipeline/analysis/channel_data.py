@@ -37,19 +37,18 @@ def gen_input_data(exp_set: Experiment, img_folder_src: str)-> list[dict]:
     img_path_list = img_list_src(exp_set,img_folder_src)
     img_path_input = [[file for file in img_path_list if file.__contains__(f"_f{(i+1):04d}")] for i in range(exp_set.img_properties.n_frames)]
     
-    new_masks_dict = {}
+    mask_input_list = []
     for mask_name,mask_channels in masks_dict.items():
         mask_path_list = mask_list_src(exp_set,mask_name)
         mask_keys = get_mask_keys(mask_name,exp_set)
         for chan in mask_channels:
-            mask_list_of_chan = [file for file in mask_path_list if chan in file]
-            mask_list_of_chan_per_frame = [[file for file in mask_list_of_chan if f"_f{(i+1):04d}" in file] for i in range(exp_set.img_properties.n_frames)]
-            for i in range(len(mask_list_of_chan_per_frame)):
-                new_masks_dict[mask_name] = {chan:{'mask_list':mask_list_of_chan_per_frame[i],'img_list':img_path_input[i],
-                                                   'mask_chan':chan,'mask_name':mask_name,'exp_set':exp_set,'mask_keys':mask_keys}}
-    
-    return new_masks_dict
-    
+            mask_path_list = [file for file in mask_path_list if chan in file]
+            mask_path_list_per_frame = [[file for file in mask_path_list if f"_f{(i+1):04d}" in file] for i in range(exp_set.img_properties.n_frames)]
+            for i in range(len(mask_path_list_per_frame)):
+                mask_input_list.append({'mask_list':mask_path_list_per_frame[i],'img_list':img_path_input[i],
+                    'mask_chan':chan,'mask_name':mask_name,'exp_set':exp_set,'mask_keys':mask_keys})
+    return mask_input_list
+   
 def get_mask_keys(mask_name: str, exp_set: Experiment)-> list:
     default_keys = ['cell','frames','time','mask_name','mask_chan','exp']  
     
@@ -69,63 +68,45 @@ def change_df_dtype(df: pd.DataFrame, exp_set: Experiment)-> pd.DataFrame:
     df = df.astype(dtype_final)
     return df
 
-def extract_mask_data(mask_name: str, mask_channelsNfiles_dict: dict, exp_set: Experiment)-> pd.DataFrame:
-    
-    mask_keys = get_mask_keys(mask_name,exp_set)
-    print(mask_keys)
-    df = pd.DataFrame(columns=mask_keys)
-    for mask_chan,input_list in mask_channelsNfiles_dict.items():
-        for input_imgs in input_list:
-            mask_path, img_path = input_imgs
-            frame = int(mask_path[0].split(sep)[-1].split('_')[2][1:])-1
-            mask = load_stack(mask_path,channel_list=[mask_chan],frame_range=[frame])
-            if mask.ndim==3:
-                mask = np.amax(mask,axis=0).astype('uint16')
-            temp_dict = {k:[] for k in mask_keys}
-            for obj in list(np.unique(mask))[1:]:
-                temp_dict['cell'].append(f"{exp_set.exp_path.split(sep)[-1]}_{mask_name}_{mask_chan}_cell{obj}")
-                temp_dict['frames'].append(frame+1)
-                temp_dict['time'].append(exp_set.time_seq[frame])
-                temp_dict['mask_name'].append(mask_name)
-                temp_dict['mask_chan'].append(mask_chan)
-                temp_dict['exp'].append(exp_set.exp_path.split(sep)[-1])
-                for chan in exp_set.active_channel_list:
-                    img = load_stack(img_path,channel_list=[chan],frame_range=[frame])
-                    temp_dict[chan].append(np.nanmean(a=img,where=mask==obj))
-            df = pd.concat([df,pd.DataFrame.from_dict(temp_dict)],ignore_index=True) 
+def extract_mask_data(mask_input_dict: dict)-> pd.DataFrame:
+    df = pd.DataFrame()
+    for _,input_dict in mask_input_dict.items():
+        frame = int(input_dict['mask_list'][0].split(sep)[-1].split('_')[2][1:])-1
+        mask = load_stack(input_dict['mask_list'],channel_list=[input_dict['mask_chan']],frame_range=[frame])
+        exp_set = input_dict['exp_set']
+        if mask.ndim==3:
+            mask = np.amax(mask,axis=0).astype('uint16')
+        data_dict = {k:[] for k in input_dict['mask_keys']}
+        for cell in list(np.unique(mask))[1:]:
+            data_dict['cell'].append(f"{exp_set.exp_path.split(sep)[-1]}_{input_dict['mask_name']}_{input_dict['mask_chan']}_cell{cell}")
+            data_dict['frames'].append(frame+1)
+            data_dict['time'].append(exp_set.time_seq[frame])
+            data_dict['mask_name'].append(input_dict['mask_name'])
+            data_dict['mask_chan'].append(input_dict['mask_chan'])
+            data_dict['exp'].append(exp_set.exp_path.split(sep)[-1])
+            for chan in exp_set.active_channel_list:
+                img = load_stack(input_dict['img_list'],channel_list=[chan],frame_range=[frame])
+                data_dict[chan].append(np.nanmean(a=img,where=mask==cell))
+        df = pd.concat([df,pd.DataFrame.from_dict(data_dict)],ignore_index=True) 
     return df  
     
-def extract_mask_data_para(mask_name: str, mask_input_dict: dict, exp_set: Experiment)-> pd.DataFrame: # TODO: fix this function
-    
-    mask_keys = get_mask_keys(mask_name,exp_set)
-    df = pd.DataFrame(columns=mask_keys)
-    for mask_chan,input_list in mask_input_dict.items():
-        input_list = [[mask_path,img_path,mask_chan,mask_keys,exp_set,mask_name] for mask_path,img_path in input_list]
-        
-        with ProcessPoolExecutor() as executor:
-            temp_dicts = executor.map(_extract_mask_data_para,input_list)
-            for temp_dict in temp_dicts:
-                df = pd.concat([df,pd.DataFrame.from_dict(temp_dict)],ignore_index=True) 
-    return df  
-
-def _extract_mask_data_para(input_imgs: list)-> pd.DataFrame:
-    mask_path, img_path, mask_chan, mask_keys, exp_set, mask_name = input_imgs
-    frame = int(mask_path[0].split(sep)[-1].split('_')[2][1:])-1
-    mask = load_stack(mask_path,channel_list=[mask_chan],frame_range=[frame])
+def extract_mask_data_para(input_dict: list)-> dict:
+    frame = int(input_dict['mask_list'][0].split(sep)[-1].split('_')[2][1:])-1
+    mask = load_stack(input_dict['mask_list'],channel_list=[input_dict['mask_chan']],frame_range=[frame])
     if mask.ndim==3:
         mask = np.amax(mask,axis=0).astype('uint16')
-    temp_dict = {k:[] for k in mask_keys}
-    for obj in list(np.unique(mask))[1:]:
-        temp_dict['cell'].append(f"{exp_set.exp_path.split(sep)[-1]}_{mask_name}_{mask_chan}_cell{obj:03d}")
-        temp_dict['frames'].append(frame+1)
-        temp_dict['time'].append(exp_set.time_seq[frame])
-        temp_dict['mask_name'].append(mask_name)
-        temp_dict['mask_chan'].append(mask_chan)
-        temp_dict['exp'].append(exp_set.exp_path.split(sep)[-1])
-        for chan in exp_set.active_channel_list:
-            img = load_stack(img_path,channel_list=[chan],frame_range=[frame])
-            temp_dict[chan].append(np.nanmean(a=img,where=mask==obj))
-    return temp_dict
+    data_dict = {k:[] for k in input_dict['mask_keys']}
+    for cell in list(np.unique(mask))[1:]:
+        data_dict['cell'].append(f"{input_dict['exp_set'].exp_path.split(sep)[-1]}_{input_dict['mask_name']}_{input_dict['mask_chan']}_cell{cell:03d}")
+        data_dict['frames'].append(frame+1)
+        data_dict['time'].append(input_dict['exp_set'].time_seq[frame])
+        data_dict['mask_name'].append(input_dict['mask_name'])
+        data_dict['mask_chan'].append(input_dict['mask_chan'])
+        data_dict['exp'].append(input_dict['exp_set'].exp_path.split(sep)[-1])
+        for chan in input_dict['exp_set'].active_channel_list:
+            img = load_stack(input_dict['img_list'],channel_list=[chan],frame_range=[frame])
+            data_dict[chan].append(np.nanmean(a=img,where=mask==cell))
+    return data_dict
 
 # # # # # # # # main functions # # # # # # # # # 
 def extract_channel_data(exp_set_list: list[Experiment], img_folder_src: str, data_overwrite: bool=False)-> list[Experiment]:
@@ -139,22 +120,26 @@ def extract_channel_data(exp_set_list: list[Experiment], img_folder_src: str, da
         
         print(f" --> Extracting cell data")   
         # Pre-load masks and images path
-        masks_dict = gen_input_data(exp_set,img_folder_src)
+        mask_input_list = gen_input_data(exp_set,img_folder_src)
         
-        for mask_name,mask_input_dict in masks_dict.items():
-            # Don't use parallel processing
-            # df = extract_mask_data(mask_name,mask_channelsNfiles_dict,exp_set)
-            # Use parallel processing
-            df = extract_mask_data_para(mask_name,mask_input_dict,exp_set)
+        # Use parallel processing
+        df = pd.DataFrame()
+        with ProcessPoolExecutor() as executor:
+            data_dictS = executor.map(extract_mask_data_para,mask_input_list)
+            for data_dict in data_dictS:
+                df = pd.concat([df,pd.DataFrame.from_dict(data_dict)],ignore_index=True)
+                
+        # # Don't use parallel processing
+        # df = extract_mask_data(mask_input_list)
             
-            # Add tags
-            df['level_0_tag'] = exp_set.analysis.level_0_tag
-            df['level_1_tag'] = exp_set.analysis.level_1_tag
-            
-            # Concat all df
-            df_analysis = pd.concat([df_analysis,df],ignore_index=True)        
-            df_analysis = change_df_dtype(df_analysis,exp_set)
-            df_analysis = df_analysis.sort_values(by=['frames','cell'])
+        # Add tags
+        df['level_0_tag'] = exp_set.analysis.level_0_tag
+        df['level_1_tag'] = exp_set.analysis.level_1_tag
+        
+        # Concat all df
+        df_analysis = pd.concat([df_analysis,df],ignore_index=True)        
+        df_analysis = change_df_dtype(df_analysis,exp_set)
+        df_analysis = df_analysis.sort_values(by=['frames','cell'])
         
         # Save df
         exp_set.save_df_analysis(df_analysis)
