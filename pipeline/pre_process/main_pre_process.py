@@ -1,35 +1,44 @@
 from __future__ import annotations
+from dataclasses import dataclass, field
 from os.path import join
 from os import sep, getcwd
 import sys
 parent_dir = getcwd()
 sys.path.append(parent_dir)
 
-from ImageAnalysis_pipeline.pipeline.classes import Experiment
-from os import sep,walk
-from os.path import isdir, join
+from ImageAnalysis_pipeline.pipeline.Experiment_Classes import Experiment
+from os import sep, walk
 import re
 from ImageAnalysis_pipeline.pipeline.pre_process.image_sequence import img_seq_all
 from ImageAnalysis_pipeline.pipeline.pre_process.image_blur import blur_img
 from ImageAnalysis_pipeline.pipeline.pre_process.background_sub import background_sub
 from ImageAnalysis_pipeline.pipeline.pre_process.image_registration import register_img, channel_shift_register
 
-def gather_all_images(parent_folder: str, file_type: str=None)-> list:
-    # look through the folder and collect all image files
-    if not isdir(parent_folder):
-        raise ValueError(f"{parent_folder} is not a correct path. Try a full path")
-    
-    if file_type: extension = (file_type,)
-    else: extension = ('.nd2','.tif','.tiff')
-    print(f"\nSearching for {extension} files in {parent_folder}")
+EXTENTION = ('.nd2','.tif','.tiff')
+
+def get_img_path(folder: str)-> list[str]:
     # Get the path of all the nd2 files in all subsequent folders/subfolders and exp_dict if available
     imgS_path = []
-    for root , _, files in walk(parent_folder):
+    for root , _, files in walk(folder):
         for f in files:
             # Look for all files with selected extension and that are not already processed 
-            if not re.search(r'_f\d\d\d',f) and f.endswith(extension):
+            if not re.search(r'_f\d\d\d',f) and f.endswith(EXTENTION):
                 imgS_path.append(join(sep,root+sep,f))
     return sorted(imgS_path)
+
+
+def gather_all_images(input_folder: str | list[str])-> list[str]:
+    # look through the folder and collect all image files
+    print(f"\nSearching for {EXTENTION} files in {input_folder}")
+    # Get the path of all the nd2 files in all subsequent folders/subfolders and exp_dict if available
+    if isinstance(input_folder,str):
+        return get_img_path(input_folder)
+    
+    if isinstance(input_folder,list):
+        img_path_list = []
+        for folder in input_folder:
+            img_path_list.extend(get_img_path(folder))
+        return img_path_list
 
 # # # # # # # main function # # # # # # # 
 def pre_process_all(parent_folder: str, active_channel_list: list[str], full_channel_list: list[str]=None, file_type: str=None, 
@@ -63,13 +72,48 @@ def pre_process_all(parent_folder: str, active_channel_list: list[str], full_cha
     return exp_set_list
     
 
+@dataclass
+class Settings:
+    settings: dict
+    bg_sub: dict = field(default_factory=dict)
+    chan_shift: dict = field(default_factory=dict)
+    register: dict = field(default_factory=dict)
+    blur: dict = field(default_factory=dict)
+    
+    def __post_init__(self)-> None:
+        if self.settings['run_bg_sub']:
+            self.bg_sub = self.settings['bg_sub']
+
+
+@dataclass
+class PreProcess:
+    input_folder: str | list[str]
+    settings: dict
+    img_path_list: list[str] = field(default_factory=list)
+    experiment_list: list[Experiment] = field(default_factory=list)
+
+    def __post_init__(self)-> None:
+        self.img_path_list = gather_all_images(self.input_folder)
+    
+    def process_from_settings(self,settings: dict)-> list[Experiment]:
+        pass
+    
+    def bg_sub(self)-> None:
+        self.experiment_list = background_sub(self.experiment_list)
+
+
+
+
+
+
+
 if __name__ == "__main__":
     from time import time
     
     # Test
     active_channel_list = ['GFP','RFP']
 
-    parent_folder = '/Users/benhome/BioTool/GitHub/cp_dev/Test_images/Run2'
+    parent_folder = '/media/ben/Analysis/Python/Test_images/Run2'
     
     t1 = time()
     exp_set_list = pre_process_all(

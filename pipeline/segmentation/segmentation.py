@@ -9,7 +9,7 @@ from skimage.morphology import remove_small_objects, remove_small_holes
 import numpy as np
 from tifffile import imsave
 from concurrent.futures import ThreadPoolExecutor
-from ImageAnalysis_pipeline.pipeline.classes import Experiment
+from ImageAnalysis_pipeline.pipeline.Experiment_Classes import Experiment
 from ImageAnalysis_pipeline.pipeline.loading_data import is_processed, load_stack, create_save_folder, gen_input_data, delete_old_masks
 
 def determine_threshold(img: np.ndarray, manual_threshold: float=None)-> float:
@@ -42,7 +42,7 @@ def apply_threshold(img_dict: dict)-> float:
     threshold_value = determine_threshold(img,img_dict['manual_threshold'])
     
     # Apply the threshold
-    _,mask = cv2.threshold(img.astype(np.uint16),threshold_value,255,cv2.THRESH_BINARY)
+    _,mask = cv2.threshold(img.astype(np.uint8),threshold_value,255,cv2.THRESH_BINARY)
     
     # Clean and save
     imsave(savedir,clean_mask(mask))

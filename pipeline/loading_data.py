@@ -5,7 +5,7 @@ parent_dir = getcwd()
 sys.path.append(parent_dir)
 
 from os.path import isdir, join, isfile
-from ImageAnalysis_pipeline.pipeline.classes import Experiment
+from ImageAnalysis_pipeline.pipeline.Experiment_Classes import Experiment
 from typing import Iterable
 import numpy as np
 from tifffile import imread 

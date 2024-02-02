@@ -5,7 +5,7 @@ import sys
 parent_dir = getcwd() 
 # Add the parent to sys.pah
 sys.path.append(parent_dir)
-from ImageAnalysis_pipeline.pipeline.classes import init_from_dict, init_from_json, Experiment
+from ImageAnalysis_pipeline.pipeline.Experiment_Classes import init_from_dict, init_from_json, Experiment
 from ImageAnalysis_pipeline.pipeline.loading_data import create_save_folder
 
 from nd2reader import ND2Reader
@@ -79,7 +79,7 @@ def write_img(meta_dict: dict)-> None:
         with ThreadPoolExecutor() as executor:
             executor.map(write_tif,img_name_list)
 
-def init_exp_settings(exp_path: str, meta_dict: dict)-> dict:
+def init_exp_settings(exp_path: str, meta_dict: dict)-> Experiment:
     """Initialize Settings object from json file or metadata"""
     
     if exists(join(sep,exp_path+sep,'exp_settings.json')):

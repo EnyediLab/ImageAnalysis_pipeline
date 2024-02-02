@@ -5,7 +5,7 @@ parent_dir = getcwd()
 # Add the parent to sys.pah
 sys.path.append(parent_dir)
 
-from ImageAnalysis_pipeline.pipeline.classes import Experiment
+from ImageAnalysis_pipeline.pipeline.Experiment_Classes import Experiment
 from ImageAnalysis_pipeline.pipeline.loading_data import img_list_src, create_save_folder
 from tifffile import imwrite, imread
 from cv2 import GaussianBlur

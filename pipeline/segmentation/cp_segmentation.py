@@ -12,7 +12,7 @@ from cellpose.io import logger_setup
 from os.path import isdir
 from tifffile import imsave
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from ImageAnalysis_pipeline.pipeline.classes import Experiment
+from ImageAnalysis_pipeline.pipeline.Experiment_Classes import Experiment
 from ImageAnalysis_pipeline.pipeline.loading_data import load_stack, is_processed, create_save_folder, gen_input_data, delete_old_masks
 
 def apply_cellpose_segmentation(img_dict: dict)-> None:

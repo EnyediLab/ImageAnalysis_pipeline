@@ -5,7 +5,7 @@ parent_dir = getcwd()
 sys.path.append(parent_dir)
 from time import time
 # TODO: fix module path 
-from ImageAnalysis_pipeline.pipeline.classes import Experiment
+from ImageAnalysis_pipeline.pipeline.Experiment_Classes import Experiment
 from ImageAnalysis_pipeline.pipeline.pre_process.main_pre_process import pre_process_all
 from ImageAnalysis_pipeline.pipeline.segmentation.segmentation import threshold
 from ImageAnalysis_pipeline.pipeline.segmentation.cp_segmentation import cellpose_segmentation

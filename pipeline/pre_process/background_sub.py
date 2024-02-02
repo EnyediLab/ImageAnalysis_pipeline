@@ -4,7 +4,7 @@ import sys
 parent_dir = getcwd()
 sys.path.append(parent_dir)
 
-from ImageAnalysis_pipeline.pipeline.classes import Experiment
+from ImageAnalysis_pipeline.pipeline.Experiment_Classes import Experiment
 from concurrent.futures import ProcessPoolExecutor
 from tifffile import imread, imwrite
 from smo import SMO

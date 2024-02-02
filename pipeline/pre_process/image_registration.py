@@ -9,7 +9,7 @@ from tifffile import imread, imwrite
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 from pystackreg import StackReg
-from ImageAnalysis_pipeline.pipeline.classes import Experiment
+from ImageAnalysis_pipeline.pipeline.Experiment_Classes import Experiment
 from ImageAnalysis_pipeline.pipeline.loading_data import load_stack, create_save_folder
 from typing import Iterable
 

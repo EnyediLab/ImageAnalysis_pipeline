@@ -10,7 +10,7 @@ from os import sep
 from os.path import join
 import pandas as pd
 import numpy as np
-from ImageAnalysis_pipeline.pipeline.classes import Experiment, Masks
+from ImageAnalysis_pipeline.pipeline.Experiment_Classes import Experiment, Masks
 from ImageAnalysis_pipeline.pipeline.loading_data import load_stack, img_list_src, is_processed, mask_list_src
 from tifffile import imread,imsave
 from concurrent.futures import ProcessPoolExecutor,ThreadPoolExecutor

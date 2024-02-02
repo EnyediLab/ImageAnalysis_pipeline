@@ -49,13 +49,21 @@ class Analysis(LoadClass):
 @dataclass
 class Experiment(LoadClass):
     exp_path: str
-    active_channel_list: list
-    full_channel_list: list
+    status: str = 'Not processed'
+    active_channel_list: list = field(default_factory=list)
+    full_channel_list: list = field(default_factory=list)
     img_properties: ImageProperties = field(default_factory=ImageProperties)
     analysis: Analysis = field(default_factory=Analysis)
     process: Process = field(default_factory=Process)
     masks: Masks = field(default_factory=Masks)
 
+    def __post_init__(self)-> None:
+        if 'REMOVED_EXP.txt' in listdir(self.exp_path):
+            self.status = 'Removed'
+        
+        if 'exp_setting.json' in listdir(self.exp_path):
+            self = init_from_json(join(sep,self.exp_path+sep,'exp_settings.json'))
+    
     @property
     def processed_images_list(self)-> list:
         im_folder = join(sep,self.exp_path+sep,'Images')
