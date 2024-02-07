@@ -1,13 +1,13 @@
-name: cellpose_2.0
+name: cp_dock
 channels:
  - pytorch
  - conda-forge
 dependencies:
  - python=3.8
  - pytorch=1.11.0
- - cudatoolkit=11.3
- - pystackreg
+ - cudatoolkit=11.3.1
  - jupyter
+ - pystackreg
  - pip
  - pip:
    - scipy
@@ -29,9 +29,8 @@ dependencies:
    - fastremap
    - imagecodecs
    - pyqtgraph>=0.11.0rc0
-   - pyqt5
+   - pyqt5==5.12
    - pyqt5.sip
-   - superqt
    - google-cloud-storage
    - sphinx>=3.0
    - sphinxcontrib-apidoc
