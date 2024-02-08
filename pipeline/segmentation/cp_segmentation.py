@@ -24,18 +24,18 @@ def apply_cellpose_segmentation(img_dict: dict)-> None:
     
     # Run Cellpose. Returns 4 variables
     if img_dict['as_npy']:
-        masks_cp, flows, styles = img_dict['model'].eval(img,**img_dict['cellpose_eval'])
-        save_npy(img,masks_cp,flows,styles,img_dict['model'].diameter,mask_path)
+        masks_cp, flows, _ = img_dict['model'].eval(img,**img_dict['cellpose_eval'])
+        save_npy(img,masks_cp,flows,img_dict['model'].diam_mean,mask_path)
         return
     
     masks_cp, __, __, = img_dict['model'].eval(img,**img_dict['cellpose_eval'])
     save_tiff(masks_cp,mask_path)
 
 def save_npy(img: np.ndarray | list[np.ndarray], masks_cp: np.ndarray | list[np.ndarray], flows: list[np.ndarray] | list[list], 
-             styles: np.ndarray | list[np.ndarray], diameter: float, mask_path: str)-> None:
+             diameter: float, mask_path: str)-> None:
     if img.ndim==3:
         mask_path = mask_path.replace("_z0001","_allz")
-    masks_flows_to_seg(img,masks_cp,flows,styles,diameter,mask_path)
+    masks_flows_to_seg(img,masks_cp,flows,diameter,mask_path)
 
 def save_tiff(masks_cp: np.ndarray | list[np.ndarray], mask_path: str)-> None:
     if masks_cp.ndim==3:
@@ -44,8 +44,7 @@ def save_tiff(masks_cp: np.ndarray | list[np.ndarray], mask_path: str)-> None:
             imsave(mask_path,masks_cp[z_silce,...].astype('uint16'))
     else:
         imsave(mask_path,masks_cp.astype('uint16'))
-            
-            
+                     
 def setup_cellpose_model(model_type: str='cyto2', **kwargs)-> dict:
     # Default settings for cellpose model
     model_settings = {'gpu':core.use_gpu(),'net_avg':False,'device':None,'diam_mean':30.,'residual_on':True,
@@ -128,23 +127,26 @@ def parallel_executor(func: Callable, input_args: list, gpu: bool)-> None:
         with ProcessPoolExecutor() as executor:
             executor.map(func,input_args)
 
-
 # # # # # # # # main functions # # # # # # # # # 
 def cellpose_segmentation(exp_set_list: list[Experiment], channel_seg: str, model_type: str='cyto2', nuclear_marker: str=None,
                           cellpose_overwrite: bool=False, stitch: float=None, img_fold_src: str=None, as_2D: bool=False,
                           as_npy: bool=False, **kwargs)-> list[Experiment]:
     """Function to run cellpose segmentation. See https://github.com/MouseLand/cellpose for more details."""
     for exp_set in exp_set_list:
+        file_type = '.tif'
+        if as_npy:
+            file_type = '.npy'
+        
         # Check if exist
         if is_processed(exp_set.masks.cellpose_seg,channel_seg,cellpose_overwrite):
                 # Log
-            print(f" --> Cells have already been segmented with cellpose for the '{channel_seg}' channel.")
+            print(f" --> Cells have already been segmented with cellpose as {file_type} for the '{channel_seg}' channel.")
             continue
         
         # Else run cellpose
-        print(f" --> Segmenting cells for the '{channel_seg}' channel")
-        delete_old_masks(exp_set.masks.cellpose_seg,channel_seg,exp_set.mask_cellpose_list,cellpose_overwrite)
+        print(f" --> Segmenting cells as {file_type} for the '{channel_seg}' channel")
         create_save_folder(exp_set.exp_path,'Masks_Cellpose')
+        delete_old_masks(exp_set.masks.cellpose_seg,channel_seg,exp_set.mask_cellpose_list,cellpose_overwrite)
         
         # Setup model and eval settings
         cellpose_model = setup_cellpose_model(model_type,**kwargs)

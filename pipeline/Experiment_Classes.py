@@ -87,7 +87,7 @@ class Experiment(LoadClass):
     @property
     def mask_cellpose_list(self)-> list:
         mask_folder = join(sep,self.exp_path+sep,'Masks_Cellpose')
-        return [join(sep,mask_folder+sep,f) for f in sorted(listdir(mask_folder)) if f.endswith('.tif')]
+        return [join(sep,mask_folder+sep,f) for f in sorted(listdir(mask_folder)) if f.endswith(('.tif','.npy'))]
     
     @property
     def mask_iou_track_list(self)-> list:
@@ -108,7 +108,7 @@ class Experiment(LoadClass):
         else:
             return pd.DataFrame()
     
-    def save_as_json(self)-> None:
+    def save_as_json(self)-> None: #FIXME: Need to save all the path as relative path, or both. as if work from a dev container, the path will be different
         main_dict = self.__dict__.copy()
         main_dict['img_properties'] = self.img_properties.__dict__
         main_dict['analysis'] = self.analysis.__dict__

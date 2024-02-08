@@ -18,25 +18,25 @@ def change_attribute(exp_set_list: list[Experiment], attribute: str, value: any)
         exp_set.set_attribute(attribute,value)
         exp_set.save_as_json()
     return exp_set_list
-    
+
 if __name__ == "__main__":
 
     t1 = time()
-    preprocess_parameters = {'parent_folder': '/media/ben/Analysis/Python/Test_images/Run2',
+    preprocess_parameters = {'parent_folder': '/home/Test_images/nd2/Run2',
                              'active_channel_list': ['GFP','RFP'],
                              'full_channel_list':['GFP','RFP'], 
                              'file_type': '.nd2',
                              'img_seq_overwrite': False,
                              'bg_sub': True,'sigma': 0.0,'size': 7,'bg_sub_overwrite': False,
                              'chan_shift': False, 'reg_channel': 'RFP', 'reg_mtd': 'rigid_body', 'chan_shift_overwrite': False,
-                             'register_images': True, 'reg_ref': 'previous', 'reg_overwrite': False,
+                             'register_images': True, 'reg_ref': 'mean', 'reg_overwrite': False,
                              'blur': False, 'blur_kernel': (15,15), 'blur_sigma': 5,'img_fold_src': None, 'blur_overwrite': False,}
                     
     segmentation_parameters = {'channel_seg':'RFP','manual_threshold': 75, 'thresold_overwrite': True, 'img_fold_src': 'Images_Registered'}
     
     cp_segmentation_parameters = {'channel_seg':'RFP','model_type':'cyto2','nuclear_marker':None,'as_2D':True,
-                                  'cellpose_overwrite':False,'stitch':None,'img_fold_src':'Images_Registered',
-                                  'diameter':60.,'flow_threshold':0.4,'cellprob_threshold':0.0,'gpu':True,"as_npy":True,}
+                                  'cellpose_overwrite':True,'stitch':None,'img_fold_src':'Images_Registered',
+                                  'diameter':60.,'flow_threshold':0.4,'cellprob_threshold':0.0,'gpu':True,"as_npy":False,}
     
     iou_tracking_parameters = {'channel_seg':'RFP','mask_fold_src':'Masks_Cellpose','stitch_thres_percent':0.75,
                                'shape_thres_percent':0.1,'iou_track_overwrite':False, 'n_mask': 10}

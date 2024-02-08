@@ -79,10 +79,13 @@ def is_processed(process: dict, channel_seg: str, overwrite: bool)-> bool:
         return False
     return True
 
-def create_save_folder(exp_path: str, folder_name: str)-> None:
+def create_save_folder(exp_path: str, folder_name: str)-> str:
     save_folder = join(sep,exp_path+sep,folder_name)
     if not isdir(save_folder):
+        print(f" ---> Creating folder: {save_folder}")
         mkdir(save_folder)
+        return save_folder
+    print(f" ---> Saving in folder: {save_folder}")
     return save_folder
 
 def gen_input_data(exp_set: Experiment, img_fold_src: str, channel_seg_list: list, **kwargs)-> list[dict]:
@@ -106,6 +109,7 @@ def delete_old_masks(class_setting_dict: dict, channel_seg: str, mask_files_list
         return
     if channel_seg not in class_setting_dict:
         return
+    print(f" ---> Deleting old masks for the '{channel_seg}' channel")
     files_list = [file for file in mask_files_list if file.__contains__(channel_seg)]
     for file in files_list:
         if isfile(file):
