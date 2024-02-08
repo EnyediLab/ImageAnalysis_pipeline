@@ -49,7 +49,7 @@ def pre_process_all(parent_folder: str, active_channel_list: list[str], full_cha
                     blur: bool=False, blur_kernel: tuple(int)=(15,15), blur_sigma: int=5, img_fold_src: str=None, blur_overwrite: bool = False,
                     )-> list[Experiment]:
     
-    img_path_list = gather_all_images(parent_folder,file_type)
+    img_path_list = gather_all_images(parent_folder)
     
     exp_set_list = img_seq_all(img_path_list,active_channel_list,full_channel_list,img_seq_overwrite)
     

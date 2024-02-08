@@ -36,7 +36,7 @@ if __name__ == "__main__":
     
     cp_segmentation_parameters = {'channel_seg':'RFP','model_type':'cyto2','nuclear_marker':None,'as_2D':True,
                                   'cellpose_overwrite':False,'stitch':None,'img_fold_src':'Images_Registered',
-                                  'diameter':60.,'flow_threshold':0.4,'cellprob_threshold':0.0,'gpu':True}
+                                  'diameter':60.,'flow_threshold':0.4,'cellprob_threshold':0.0,'gpu':True,"as_npy":True,}
     
     iou_tracking_parameters = {'channel_seg':'RFP','mask_fold_src':'Masks_Cellpose','stitch_thres_percent':0.75,
                                'shape_thres_percent':0.1,'iou_track_overwrite':False, 'n_mask': 10}
@@ -47,12 +47,12 @@ if __name__ == "__main__":
     exp_set_list = pre_process_all(**preprocess_parameters)
     # exp_set_list = threshold(exp_set_list,**segmentation_parameters)
     exp_set_list = cellpose_segmentation(exp_set_list,**cp_segmentation_parameters)
-    exp_set_list = iou_tracking(exp_set_list,**iou_tracking_parameters)
+    # exp_set_list = iou_tracking(exp_set_list,**iou_tracking_parameters)
     
     # Add interval_sec manually
     # exp_set_list = change_attribute(exp_set_list,'interval_sec',10)
     
-    exp_set_list = extract_channel_data(exp_set_list,'Images_Registered',False)
+    # exp_set_list = extract_channel_data(exp_set_list,'Images_Registered',False)
     
     t2 = time()
     if t2-t1<60: print(f"Time to process: {round(t2-t1,ndigits=3)} sec\n")

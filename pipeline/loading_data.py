@@ -85,7 +85,7 @@ def create_save_folder(exp_path: str, folder_name: str)-> None:
         mkdir(save_folder)
     return save_folder
 
-def gen_input_data(exp_set: Experiment, img_fold_src: str, channel_seg_list: list, **kwargs)-> list:
+def gen_input_data(exp_set: Experiment, img_fold_src: str, channel_seg_list: list, **kwargs)-> list[dict]:
     img_path_list = img_list_src(exp_set,img_fold_src)
     channel_seg = channel_seg_list[0]
     input_data = []
