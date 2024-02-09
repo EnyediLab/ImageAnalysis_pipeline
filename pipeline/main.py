@@ -22,7 +22,9 @@ def change_attribute(exp_set_list: list[Experiment], attribute: str, value: any)
 if __name__ == "__main__":
 
     t1 = time()
-    preprocess_parameters = {'parent_folder': '/home/Test_images/nd2/Run2',
+    parent_folder = '/home/ben/Dropbox/SOTE_Lab/Pyhton/Pipelines/Test_images/nd2/Run2'
+    # parent_folder = '/home/Test_images/nd2/Run2'
+    preprocess_parameters = {'parent_folder': parent_folder,
                              'active_channel_list': ['GFP','RFP'],
                              'full_channel_list':['GFP','RFP'], 
                              'file_type': '.nd2',

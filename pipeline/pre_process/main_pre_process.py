@@ -1,11 +1,11 @@
 from __future__ import annotations
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from os.path import join
 from os import sep, getcwd
 import sys
 parent_dir = getcwd()
 sys.path.append(parent_dir)
-
+import functools
 from ImageAnalysis_pipeline.pipeline.Experiment_Classes import Experiment
 from os import sep, walk
 import re
@@ -72,23 +72,97 @@ def pre_process_all(parent_folder: str, active_channel_list: list[str], full_cha
     return exp_set_list
     
 
+def rsetattr(obj, attr, val):
+    pre, _, post = attr.rpartition('.')
+    return setattr(rgetattr(obj, pre) if pre else obj, post, val)
+
+def rgetattr(obj, attr, *args):
+    def _getattr(obj, attr):
+        return getattr(obj, attr, *args)
+    return functools.reduce(_getattr, [obj] + attr.split('.'))
+
+
+@dataclass
+class BgSub:
+    sigma: float = field(default_factory=float)
+    size: int = field(default_factory=int)
+    overwrite: bool = field(default_factory=bool)
+    
+@dataclass
+class ChanShift:
+    reg_channel: str = field(default_factory=str)
+    reg_mtd: str = field(default_factory=str)
+    overwrite: bool = field(default_factory=bool)
+    
+@dataclass
+class Register:
+    reg_channel: str = field(default_factory=str)
+    reg_mtd: str = field(default_factory=str)
+    reg_ref: str = field(default_factory=str)
+    overwrite: bool = field(default_factory=bool)
+    
+@dataclass
+class Blur:
+    kernel: tuple[int] = field(default_factory=tuple)
+    sigma: int = field(default_factory=int)
+    img_fold_src: str = field(default_factory=str)
+    overwrite: bool = field(default_factory=bool)
+
+def unpack_settings(input_settings: dict)-> Settings:
+    settings = Settings()
+    if input_settings['run_bg_sub']:
+        settings.bg_sub = BgSub(**input_settings['bg_sub'])
+    if input_settings['run_chan_shift']:
+        settings.chan_shift = ChanShift(**input_settings['chan_shift'])
+    if input_settings['run_register']:
+        settings.register = Register(**input_settings['register'])
+    if input_settings['run_blur']:
+        settings.blur = Blur(**input_settings['blur'])
+    return settings
+
+
+
+
 @dataclass
 class Settings:
     settings: dict
-    bg_sub: dict = field(default_factory=dict)
-    chan_shift: dict = field(default_factory=dict)
-    register: dict = field(default_factory=dict)
-    blur: dict = field(default_factory=dict)
+    bg_sub: BgSub = field(default_factory=BgSub)
+    chan_shift: ChanShift = field(default_factory=ChanShift)
+    register: Register = field(default_factory=Register)
+    blur: Blur = field(default_factory=Blur)
     
     def __post_init__(self)-> None:
         if self.settings['run_bg_sub']:
-            self.bg_sub = self.settings['bg_sub']
+            self.bg_sub = BgSub(**self.settings['bg_sub'])
+        if self.settings['run_chan_shift']:
+            self.chan_shift = ChanShift(**self.settings['chan_shift'])
+        if self.settings['run_register']:
+            self.register = Register(**self.settings['register'])
+        if self.settings['run_blur']:
+            self.blur = Blur(**self.settings['blur'])
+        
+    def update_overwrite(self)-> None:
+        active_branches = [f.name for f in fields(self) if hasattr(self,f.name) and f.name != 'settings']
+        current_overwrite = [getattr(self,f).overwrite for f in active_branches]
+        
+        # Get the new overwrite list, if the previous is true then change the next to true, else keep the same
+        new_overwrite = [current_overwrite[0]]
+        for i in range(1,len(current_overwrite)):
+            if current_overwrite[i-1] == True:
+                new_overwrite.append(True)
+            else:
+                new_overwrite.append(current_overwrite[i])
+        
+        # Update the overwrite attribute
+        for branch in active_branches:
+            rsetattr(self.branch,branch,getattr(self,branch)._replace(overwrite=new_overwrite.pop(0)))
+        
 
 
 @dataclass
 class PreProcess:
     input_folder: str | list[str]
-    settings: dict
+    settings: Settings
     img_path_list: list[str] = field(default_factory=list)
     experiment_list: list[Experiment] = field(default_factory=list)
 
